@@ -10,17 +10,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. BALANCED CSS ---
+# --- 2. REFINED CSS ---
 st.markdown("""
     <style>
     /* IMPORT FONTS */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
-    /* 1. CENTERED & CONSTRAINED LAYOUT */
+    /* 1. LAYOUT & SPACING */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 3rem !important;
-        max-width: 1100px !important; /* Prevents it from getting too wide on huge screens */
+        max-width: 1200px !important;
         margin: 0 auto !important;
     }
     
@@ -48,7 +48,7 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* 4. UPLOAD BOX (Refined) */
+    /* 4. UPLOAD BOX (Wider & Cleaner) */
     [data-testid="stFileUploader"] {
         background-color: #FAFAFA;
         border: 2px dashed #E5E7EB;
@@ -89,14 +89,6 @@ st.markdown("""
         border: 1px solid #E5E7EB;
         border-radius: 8px;
         padding: 10px;
-    }
-    
-    /* 8. PAGE COUNT INDICATOR */
-    .page-indicator {
-        font-size: 0.9rem;
-        color: #820AD1;
-        font-weight: 600;
-        margin-bottom: 10px;
     }
     
     /* Feature Cards */
@@ -142,11 +134,6 @@ def get_pdf_info(file_bytes):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     return len(doc)
 
-def format_size(size_in_bytes):
-    if size_in_bytes < 1024 * 1024:
-        return f"{size_in_bytes / 1024:.1f} KB"
-    return f"{size_in_bytes / (1024 * 1024):.1f} MB"
-
 @st.cache_data(show_spinner=False)
 def get_preview_image(file_bytes, header_h, footer_h, txt, case):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -173,8 +160,9 @@ def process_full_document(file_bytes, header_h, footer_h, txt, case):
 st.markdown('<div class="hero-title">DocPolish</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-subtitle">Remove watermarks, footers, and clutter instantly.</div>', unsafe_allow_html=True)
 
-# UPLOAD SECTION - CENTERED & CONSTRAINED
-c_up1, c_up2, c_up3 = st.columns([1, 2, 1])
+# UPLOAD SECTION - CENTERED & WIDER
+# Changed from [1, 2, 1] to [1, 3, 1] to make the box slightly wider
+c_up1, c_up2, c_up3 = st.columns([1, 3, 1])
 with c_up2:
     uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
 
@@ -192,19 +180,13 @@ if not uploaded_file:
 
 # --- SCENARIO 2: WORKSPACE ---
 else:
-    # PAGE INFO (Subtle, not redundant)
-    page_count = get_pdf_info(uploaded_file.getvalue())
-    file_size_str = format_size(uploaded_file.size)
-    
+    # REMOVED EXTRA TEXT LINE HERE
     st.write("---")
 
     # STUDIO UI
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        # File Stats at top of controls
-        st.markdown(f'<div class="page-indicator">📄 Document: {page_count} Pages ({file_size_str})</div>', unsafe_allow_html=True)
-        
         st.markdown("**🪄 Magic Text Eraser**")
         text_input = st.text_input("keywords", placeholder="e.g. Confidential, Draft", label_visibility="collapsed")
         match_case = st.checkbox("Match Case", value=False)
