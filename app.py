@@ -213,7 +213,7 @@ else:
         footer_height = st.slider("Footer", 0, 150, 0, label_visibility="collapsed")
 
     with col_right:
-        st.markdown("### 👁️ Live Preview")
+        st.markdown("###  Live Preview")
         preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
         if preview_img:
             # RESTRICTED WIDTH (Matches left column weight)
