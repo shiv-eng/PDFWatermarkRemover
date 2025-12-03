@@ -3,9 +3,9 @@ import fitz  # PyMuPDF
 import io
 import time
 
-# --- 1. CONFIGURATION ---
+# --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="DocPolish | Smart Edition",
+    page_title="DocPolish",
     page_icon="🧠",
     layout="centered"
 )
@@ -17,7 +17,7 @@ st.markdown("""
     [data-testid="stAppViewContainer"] { background-color: #FFFFFF !important; }
     [data-testid="stHeader"] { background-color: #FFFFFF !important; }
     
-    /* FONTS */
+    /* GLOBAL FONTS */
     * { font-family: 'Inter', sans-serif !important; color: #111111; }
 
     /* TITLE */
@@ -40,20 +40,7 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* SMART CARDS */
-    .smart-card {
-        background-color: #F8F9FA;
-        border: 1px solid #E5E7EB;
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 20px;
-        transition: border-color 0.2s;
-    }
-    .smart-card:hover {
-        border-color: #820AD1;
-    }
-
-    /* UPLOAD AREA */
+    /* UPLOAD CARD */
     [data-testid="stFileUploader"] {
         background-color: #F8F9FA; 
         border: 2px dashed #E5E7EB;
@@ -66,28 +53,53 @@ st.markdown("""
         background-color: #F3E8FF;
     }
 
-    /* BUTTONS */
+    /* SMART INPUT FIELDS */
+    .stTextInput input {
+        border-radius: 10px;
+        border: 1px solid #E5E7EB;
+        padding: 10px 15px;
+        color: #111;
+    }
+    .stTextInput input:focus {
+        border-color: #820AD1;
+        box-shadow: 0 0 0 1px #820AD1;
+    }
+
+    /* SLIDER COLOR */
+    div[data-baseweb="slider"] div { background-color: #820AD1 !important; }
+
+    /* SUCCESS BUBBLE */
+    .success-box {
+        background-color: #F3E8FF;
+        color: #6D08AF;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 12px;
+        border: 1px solid #D8B4FE;
+        width: 100%; 
+        box-sizing: border-box;
+    }
+
+    /* DOWNLOAD BUTTON */
     .stDownloadButton > button {
         background-color: #820AD1 !important;
         color: white !important;
         border-radius: 12px !important;
+        padding: 0.8rem 1rem !important;
         font-weight: 600 !important;
+        font-size: 1.1rem !important;
+        border: none !important;
         box-shadow: 0 4px 15px rgba(130, 10, 209, 0.3) !important;
         width: 100%;
         transition: transform 0.2s;
     }
     .stDownloadButton > button:hover {
+        background-color: #6D08AF !important;
         transform: scale(1.02);
     }
-    
-    /* TOGGLES */
-    [data-testid="stCheckbox"] label {
-        font-weight: 500 !important;
-    }
 
-    /* SLIDER COLOR */
-    div[data-baseweb="slider"] div { background-color: #820AD1 !important; }
-    
     /* HIDE CHROME */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -100,41 +112,36 @@ def process_pdf(input_bytes, footer_height, text_to_remove, match_case, whole_wo
     doc = fitz.open(stream=input_bytes, filetype="pdf")
     output_buffer = io.BytesIO()
     
-    # 1. Privacy Scrub
+    # 1. Privacy Scrub (Metadata Wipe)
     doc.set_metadata({}) 
     
     for page in doc:
         # --- ENGINE A: SMART TEXT HUNTER ---
         if text_to_remove:
-            # We get every single word on the page with its location
-            # words = list of (x0, y0, x1, y1, "word_string", ...)
+            # Get every word with its location
             words = page.get_text("words")
             
             for w in words:
-                word_text = w[4] # The actual text string
-                word_rect = fitz.Rect(w[0], w[1], w[2], w[3]) # The location
+                word_text = w[4] # The text string
+                word_rect = fitz.Rect(w[0], w[1], w[2], w[3]) # The coordinates
                 
-                # SMART CHECK 1: Case Sensitivity
+                # Check 1: Case Sensitivity
                 if match_case:
                     # Strict: "Confidential" != "CONFIDENTIAL"
-                    is_match = (text_to_remove == word_text)
+                    text_match = (text_to_remove == word_text)
+                    if not whole_word:
+                        text_match = (text_to_remove in word_text)
                 else:
                     # Loose: "confidential" == "CONFIDENTIAL"
-                    is_match = (text_to_remove.lower() == word_text.lower())
-                
-                # SMART CHECK 2: Partial Matches (if Whole Word is OFF)
-                # If user typed "Draft" and whole_word is False, we match "Drafting"
-                if not whole_word and not is_match:
-                     if match_case:
-                         is_match = (text_to_remove in word_text)
-                     else:
-                         is_match = (text_to_remove.lower() in word_text.lower())
+                    text_match = (text_to_remove.lower() == word_text.lower())
+                    if not whole_word:
+                        text_match = (text_to_remove.lower() in word_text.lower())
 
-                # FIRE LASER
-                if is_match:
+                # Fire Laser if matched
+                if text_match:
                     page.add_redact_annot(word_rect, fill=None)
             
-            # Apply all redactions for this page
+            # Apply redactions for this page
             page.apply_redactions()
 
         # --- ENGINE B: FOOTER POLISHER ---
@@ -170,8 +177,7 @@ with c2:
     if uploaded_file:
         st.write("")
         
-        # --- SMART ERASER CARD ---
-        st.markdown('<div class="smart-card">', unsafe_allow_html=True)
+        # --- SECTION 1: MAGIC ERASER ---
         st.markdown("**🪄 Magic Text Eraser**")
         
         col_input, col_opt = st.columns([2, 1])
@@ -180,45 +186,34 @@ with c2:
         
         with col_opt:
             # Smart Toggles
-            match_case = st.checkbox("Match Case", value=True, help="If checked, 'Confidential' will NOT remove 'CONFIDENTIAL'.")
-            whole_word = st.checkbox("Whole Word", value=True, help="If checked, 'Draft' will NOT remove 'Drafting'.")
+            match_case = st.checkbox("Match Case", value=True, help="Strict matching. 'Draft' will NOT remove 'DRAFT'.")
+            whole_word = st.checkbox("Whole Word", value=True, help="Safe mode. 'Draft' will NOT remove 'Drafting'.")
         
-        if text_to_remove:
-             st.caption(f"🎯 Targeting exactly: **'{text_to_remove}'**")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-        # --- FOOTER CARD ---
-        st.markdown('<div class="smart-card">', unsafe_allow_html=True)
+        st.write("")
+        
+        # --- SECTION 2: FOOTER POLISH ---
         st.markdown("**📏 Footer Polish**")
         st.caption("Slide to cover persistent footer text.")
         footer_height = st.slider("", 0, 100, 0, label_visibility="collapsed")
-        st.markdown('</div>', unsafe_allow_html=True)
         
+        st.write("---") 
         
-        # --- ACTION AREA ---
+        # --- PROCESSING ---
         if footer_height > 0 or text_to_remove:
             with st.spinner("🤖 AI Polishing in progress..."):
                 cleaned_data, page_count = process_pdf(uploaded_file.getvalue(), footer_height, text_to_remove, match_case, whole_word)
                 time.sleep(0.5)
             
-            # Centered Success
-            st.markdown(
-                f"""<div style="text-align: center; background: #F3E8FF; padding: 10px; border-radius: 12px; border: 1px solid #D8B4FE; color: #6D08AF; font-weight: 600; margin-bottom: 15px;">
-                ✨ Smart-Cleaned {page_count} Pages
-                </div>""", 
-                unsafe_allow_html=True
-            )
+            # Success Message
+            st.markdown(f'<div class="success-box">✨ Smart-Cleaned {page_count} Pages</div>', unsafe_allow_html=True)
             
-            # Centered Button
-            b1, b2, b3 = st.columns([1, 2, 1])
-            with b2:
-                st.download_button(
-                    label="Download Result",
-                    data=cleaned_data,
-                    file_name=f"SmartClean_{uploaded_file.name}",
-                    mime="application/pdf"
-                )
+            # Download Button
+            st.download_button(
+                label="Download Result",
+                data=cleaned_data,
+                file_name=f"Clean_{uploaded_file.name}",
+                mime="application/pdf"
+            )
 
 # Footer Trust Signals
 st.write("")
