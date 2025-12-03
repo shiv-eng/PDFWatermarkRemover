@@ -3,35 +3,28 @@ import fitz  # PyMuPDF
 import io
 import time
 
-# --- 1. PAGE CONFIGURATION ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="DocPolish | watermarkRemover",
+    page_title="DocPolish",
     page_icon="🟣",
     layout="centered"
 )
 
-# --- 2. HIGH-END NU CSS ---
+# --- 2. STYLING ---
 st.markdown("""
     <style>
-    /* FORCE LIGHT THEME (Crucial for Nu Look) */
-    [data-testid="stAppViewContainer"] {
-        background-color: #FFFFFF !important;
-    }
-    [data-testid="stHeader"] {
-        background-color: #FFFFFF !important;
-    }
+    /* FORCE LIGHT THEME */
+    [data-testid="stAppViewContainer"] { background-color: #FFFFFF !important; }
+    [data-testid="stHeader"] { background-color: #FFFFFF !important; }
     
-    /* GLOBAL FONTS & COLORS */
-    * {
-        font-family: 'Inter', sans-serif !important;
-        color: #111111;
-    }
+    /* GLOBAL FONTS */
+    * { font-family: 'Inter', sans-serif !important; color: #111111; }
 
-    /* TYPOGRAPHY */
+    /* TITLE */
     h1 {
         font-weight: 800 !important;
         letter-spacing: -0.03em !important;
-        color: #820AD1 !important; /* Nu Purple */
+        color: #820AD1 !important;
         font-size: 3rem !important;
         text-align: center;
         margin-bottom: 0px !important;
@@ -47,7 +40,7 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* PREMIUM UPLOAD CARD */
+    /* UPLOAD CARD */
     [data-testid="stFileUploader"] {
         background-color: #F8F9FA; 
         border: 2px dashed #E5E7EB;
@@ -60,12 +53,28 @@ st.markdown("""
         background-color: #F3E8FF;
     }
 
-    /* CENTERED PILL BUTTON */
+    /* SLIDER FIX */
+    div[data-baseweb="slider"] div { background-color: #820AD1 !important; }
+
+    /* SUCCESS BUBBLE (Full Width to match button) */
+    .success-box {
+        background-color: #F3E8FF;
+        color: #6D08AF;
+        padding: 12px;
+        border-radius: 12px; /* Matches button curve slightly */
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 12px;
+        border: 1px solid #D8B4FE;
+        width: 100%; /* Forces alignment */
+    }
+
+    /* DOWNLOAD BUTTON */
     .stDownloadButton > button {
         background-color: #820AD1 !important;
         color: white !important;
-        border-radius: 50px !important;
-        padding: 0.8rem 3rem !important;
+        border-radius: 12px !important; /* Consistent radius */
+        padding: 0.8rem 1rem !important;
         font-weight: 600 !important;
         font-size: 1.1rem !important;
         border: none !important;
@@ -76,18 +85,6 @@ st.markdown("""
     .stDownloadButton > button:hover {
         background-color: #6D08AF !important;
         transform: scale(1.02);
-    }
-
-    /* SUCCESS BUBBLE */
-    .success-bubble {
-        background-color: #F3E8FF;
-        color: #6D08AF;
-        padding: 10px 20px;
-        border-radius: 20px;
-        font-weight: 600;
-        text-align: center;
-        display: inline-block;
-        margin-bottom: 20px;
     }
 
     /* HIDE CHROME */
@@ -127,7 +124,7 @@ def process_pdf(input_bytes, footer_height):
 st.markdown('<h1>DocPolish</h1>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Simple. Transparent. Clean.</p>', unsafe_allow_html=True)
 
-# Main Interaction Area
+# Main Area
 c1, c2, c3 = st.columns([1, 8, 1])
 
 with c2:
@@ -136,19 +133,11 @@ with c2:
     if uploaded_file:
         st.write("") 
         
-        # --- NEW CONTEXT SECTION ---
+        # Context + Slider
         st.markdown("**Cleaning Depth**")
-        st.markdown(
-            """
-            <div style="color: #666; font-size: 0.9rem; margin-bottom: 10px; margin-top: -15px;">
-            Controls how much area from the bottom of the page is removed (in pixels). 
-            <br><i>Increase this slider if the footer text is still visible.</i>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        st.caption("Controls how many pixels are removed from the bottom of the page. Increase this only if footer text is still visible.")
         
-        # Standard Slider (No CSS hacks to prevent the block glitch)
+        # Standard Slider
         footer_height = st.slider("", 10, 100, 30, label_visibility="collapsed")
         
         st.write("---") 
@@ -158,17 +147,15 @@ with c2:
             cleaned_data, page_count = process_pdf(uploaded_file.getvalue(), footer_height)
             time.sleep(0.5)
         
-        # Centered Success Badge
-        st.markdown(
-            f"""<div style="text-align: center;">
-                <div class="success-bubble">✨ {page_count} Pages Cleaned</div>
-            </div>""", 
-            unsafe_allow_html=True
-        )
+        # --- RESULTS AREA (Perfectly Aligned) ---
+        # We create a new column set just for the results to pinch them in slightly
+        res_col1, res_col2, res_col3 = st.columns([1, 2, 1])
         
-        # Centered Download Button
-        b1, b2, b3 = st.columns([1, 2, 1])
-        with b2:
+        with res_col2:
+            # 1. The Success Message (Full Width of this column)
+            st.markdown(f'<div class="success-box">✨ {page_count} Pages Cleaned</div>', unsafe_allow_html=True)
+            
+            # 2. The Download Button (Full Width of this column)
             st.download_button(
                 label="Download PDF",
                 data=cleaned_data,
@@ -180,18 +167,5 @@ with c2:
 st.write("")
 st.write("")
 st.markdown("""
-<div style="display: flex; justify-content: center; gap: 40px; margin-top: 30px; opacity: 0.8;">
-    <div style="text-align: center;">
-        <span style="font-size: 1.5rem;">🔒</span>
-        <div style="font-size: 0.8rem; font-weight: 600;">Private</div>
-    </div>
-    <div style="text-align: center;">
-        <span style="font-size: 1.5rem;">⚡</span>
-        <div style="font-size: 0.8rem; font-weight: 600;">Instant</div>
-    </div>
-    <div style="text-align: center;">
-        <span style="font-size: 1.5rem;">💎</span>
-        <div style="font-size: 0.8rem; font-weight: 600;">Free</div>
-    </div>
-</div>
+
 """, unsafe_allow_html=True)
