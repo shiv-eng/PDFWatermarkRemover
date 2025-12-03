@@ -2,277 +2,227 @@ import streamlit as st
 import fitz  # PyMuPDF
 import io
 import time
+from PIL import Image
 
-# --- 1. PAGE CONFIGURATION ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(
     page_title="DocPolish",
     page_icon="✨",
-    layout="centered"
+    layout="wide"
 )
 
-# --- 2. ENHANCED CSS ---
+# --- 2. OPTIMIZED CSS (No Glitches) ---
 st.markdown("""
     <style>
-    /* IMPORT BETTER FONT */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    
     /* FORCE LIGHT THEME */
-    [data-testid="stAppViewContainer"] { 
-        background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%) !important;
-    }
-    [data-testid="stHeader"] { background-color: transparent !important; }
+    [data-testid="stAppViewContainer"] { background-color: #FFFFFF !important; }
+    [data-testid="stHeader"] { background-color: #FFFFFF !important; }
     
-    /* GLOBAL FONTS */
-    * { 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; 
-        color: #111111; 
-    }
+    /* GLOBAL FONTS - Standard System Fonts for Readability */
+    * { color: #111111; }
 
-    /* ANIMATED TITLE */
+    /* TITLE */
     h1 {
         font-weight: 800 !important;
-        letter-spacing: -0.04em !important;
-        background: linear-gradient(135deg, #820AD1 0%, #B44EE8 100%);
+        background: -webkit-linear-gradient(45deg, #820AD1, #B220E8);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-size: 3.5rem !important;
-        text-align: center;
+        font-size: 3rem !important;
         margin-bottom: 0px !important;
         padding-top: 10px !important;
-        animation: fadeInDown 0.6s ease-out;
     }
     
-    @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    p.subtitle {
-        text-align: center;
-        color: #6B7280 !important;
-        font-size: 1.15rem;
-        margin-top: 8px;
-        margin-bottom: 40px;
-        font-weight: 500;
-        letter-spacing: 0.01em;
-        animation: fadeIn 0.8s ease-out 0.2s both;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+    .subtitle {
+        color: #6B7280;
+        font-size: 1.1rem;
+        margin-bottom: 30px;
     }
 
-    /* ENHANCED UPLOAD CARD */
+    /* UPLOAD CARD */
     [data-testid="stFileUploader"] {
-        background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F7 100%);
-        border: 2.5px dashed #D1D5DB;
-        border-radius: 24px;
-        padding: 40px 30px;
-        text-align: center;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        animation: slideUp 0.6s ease-out 0.3s both;
+        background-color: #FAFAFA;
+        border: 2px dashed #E5E7EB;
+        border-radius: 15px;
+        padding: 20px;
     }
-    
-    @keyframes slideUp {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
     [data-testid="stFileUploader"]:hover {
         border-color: #820AD1;
-        background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);
-        box-shadow: 0 8px 25px rgba(130, 10, 209, 0.15);
-        transform: translateY(-2px);
-    }
-    
-    /* FILE UPLOAD TEXT */
-    [data-testid="stFileUploader"] label {
-        font-weight: 600 !important;
-        font-size: 1.05rem !important;
-        color: #374151 !important;
+        background-color: #F8F5FF;
     }
 
-    /* SECTION LABELS */
-    .stMarkdown strong {
-        color: #1F2937 !important;
-        font-weight: 700 !important;
-        font-size: 1.05rem !important;
-        letter-spacing: -0.01em;
-    }
-    
-    .stMarkdown .stCaption {
-        color: #6B7280 !important;
-        font-size: 0.9rem !important;
-        line-height: 1.5 !important;
-        margin-top: 4px !important;
-    }
-
-    /* ENHANCED SLIDER */
-    .stSlider {
-        padding: 10px 0;
-    }
-    
-    [data-testid="stSlider"] {
-        animation: fadeIn 0.5s ease-out 0.4s both;
-    }
-
-    /* SUCCESS BUBBLE - ENHANCED */
-    .success-box {
-        background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%);
-        color: #6D08AF;
-        padding: 18px 24px;
-        border-radius: 16px;
-        font-weight: 700;
-        font-size: 1.05rem;
+    /* PREVIEW CARD */
+    .preview-container {
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 10px;
+        background-color: #FAFAFA;
         text-align: center;
-        margin-bottom: 16px;
-        border: 2px solid #D8B4FE;
-        width: 100%; 
-        box-sizing: border-box;
-        box-shadow: 0 4px 20px rgba(130, 10, 209, 0.15);
-        animation: successPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        letter-spacing: -0.01em;
-    }
-    
-    @keyframes successPop {
-        0% { opacity: 0; transform: scale(0.8) translateY(20px); }
-        100% { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    /* ENHANCED DOWNLOAD BUTTON - CLEAN & ALIGNED */
-    .stDownloadButton {
-        width: 100%;
-        display: block;
-    }
-    
-    .stDownloadButton > button {
-        background-color: #820AD1 !important;
-        color: white !important;
-        border-radius: 12px !important;
-        padding: 0.75rem 1.25rem !important;
-        font-weight: 600 !important;
-        font-size: 1rem !important;
-        border: none !important;
-        box-shadow: 0 2px 8px rgba(130, 10, 209, 0.2) !important;
-        width: 100% !important;
-        transition: all 0.2s ease;
-        letter-spacing: 0em;
-        height: auto !important;
-    }
-    
-    .stDownloadButton > button:hover {
-        background-color: #6D08AF !important;
-        box-shadow: 0 4px 12px rgba(130, 10, 209, 0.3) !important;
-        transform: translateY(-1px);
-    }
-    
-    .stDownloadButton > button:active {
-        transform: translateY(0px);
-    }
-
-    /* DIVIDER STYLING */
-    hr {
-        margin: 24px 0 !important;
-        border: none !important;
-        height: 1px !important;
-        background: linear-gradient(90deg, transparent, #E5E7EB, transparent) !important;
-    }
-
-    /* SPINNER ENHANCEMENT */
-    [data-testid="stSpinner"] > div {
-        border-top-color: #820AD1 !important;
-    }
+    /* SLIDER (Standard Streamlit Color) */
+    div[data-baseweb="slider"] div { background-color: #820AD1 !important; }
 
     /* HIDE CHROME */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* UPLOADED FILE DISPLAY */
-    [data-testid="stFileUploader"] section {
-        background: white !important;
-        border-radius: 12px !important;
-        border: 1px solid #E5E7EB !important;
-        padding: 12px !important;
-        transition: all 0.2s ease;
-    }
-    
-    [data-testid="stFileUploader"] section:hover {
-        border-color: #820AD1 !important;
-        box-shadow: 0 2px 8px rgba(130, 10, 209, 0.1) !important;
-    }
-    
-    /* CONTAINER SPACING - MINIMAL */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 800px !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. PROCESSING LOGIC (UNCHANGED) ---
-def process_pdf(input_bytes, footer_height):
-    doc = fitz.open(stream=input_bytes, filetype="pdf")
-    output_buffer = io.BytesIO()
-    
-    for page in doc:
-        rect = page.rect
-        # Smart detection
-        clip_rect = fitz.Rect(0, rect.height - 10, 1, rect.height - 9)
-        pix = page.get_pixmap(clip=clip_rect)
-        r, g, b = pix.pixel(0, 0)
-        dynamic_color = (r/255, g/255, b/255)
-        
-        # Draw box
+# --- 3. CORE LOGIC (With Caching for Speed) ---
+
+def clean_page_logic(page, header_height, footer_height, text_input, match_case):
+    """Core cleaning logic applied to a page object"""
+    # 1. MAGIC ERASER
+    if text_input:
+        keywords = [k.strip() for k in text_input.split(',')]
+        for keyword in keywords:
+            if not keyword: continue
+            quads = page.search_for(keyword)
+            for quad in quads:
+                if match_case:
+                    res = page.get_text("text", clip=quad).strip()
+                    if keyword not in res: continue
+                page.add_redact_annot(quad, fill=None)
+        page.apply_redactions()
+
+    # 2. AREA WIPERS
+    rect = page.rect
+    # Smart color detection (Bottom Left)
+    clip_rect = fitz.Rect(0, rect.height - 10, 1, rect.height - 9)
+    pix = page.get_pixmap(clip=clip_rect)
+    r, g, b = pix.pixel(0, 0)
+    dynamic_color = (r/255, g/255, b/255)
+
+    if footer_height > 0:
         footer_rect = fitz.Rect(0, rect.height - footer_height, rect.width, rect.height)
         shape = page.new_shape()
         shape.draw_rect(footer_rect)
         shape.finish(color=dynamic_color, fill=dynamic_color, width=0)
         shape.commit()
+
+    if header_height > 0:
+        header_rect = fitz.Rect(0, 0, rect.width, header_height)
+        shape = page.new_shape()
+        shape.draw_rect(header_rect)
+        shape.finish(color=dynamic_color, fill=dynamic_color, width=0)
+        shape.commit()
+
+# CACHED PREVIEW FUNCTION (This makes it fast!)
+# We cache based on inputs so it doesn't re-run heavy logic unnecessarily
+@st.cache_data(show_spinner=False)
+def get_preview_image(file_bytes, header_h, footer_h, txt, case):
+    """Extracts Page 1 and applies cleaning for preview"""
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    if len(doc) < 1: return None
+    
+    page = doc[0] # Only process page 1
+    clean_page_logic(page, header_h, footer_h, txt, case)
+    
+    # Render low DPI for super fast preview
+    pix = page.get_pixmap(dpi=72) 
+    return Image.open(io.BytesIO(pix.tobytes("png")))
+
+def process_full_document(file_bytes, header_h, footer_h, txt, case):
+    """Processes the entire file"""
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    output_buffer = io.BytesIO()
+    doc.set_metadata({}) 
+    
+    for page in doc:
+        clean_page_logic(page, header_h, footer_h, txt, case)
     
     doc.save(output_buffer)
     output_buffer.seek(0)
-    return output_buffer, len(doc)
+    return output_buffer
 
 # --- 4. THE UI ---
 
-# Header with icon
-st.markdown('<h1>✨ DocPolish</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Simple. Transparent. Clean.</p>', unsafe_allow_html=True)
+st.markdown('<h1>DocPolish</h1>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Professional Document Studio</div>', unsafe_allow_html=True)
 
-# Main Container
-c1, c2, c3 = st.columns([1, 8, 1])
+# Layout: 40% Controls | 60% Preview
+col_controls, col_preview = st.columns([2, 3], gap="large")
 
-with c2:
-    uploaded_file = st.file_uploader("📄 Drop your PDF here", type="pdf")
+with col_controls:
+    st.markdown("### 1. Upload")
+    uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
     
     if uploaded_file:
-        st.write("") 
+        st.write("---")
+        st.markdown("### 2. Controls")
         
-        # Context + Slider
-        st.markdown("**🎯 Cleaning Depth**")
-        st.caption("Controls how many pixels are removed from the bottom of the page. Increase this only if footer text is still visible.")
+        # MAGIC ERASER (No Expander - Cleaner)
+        st.markdown("**🪄 Magic Text Eraser**")
+        st.caption("Remove specific words (comma separated).")
+        text_input = st.text_input("Text to remove", placeholder="e.g. Confidential, Draft")
+        match_case = st.checkbox("Match Case", value=False)
         
-        # Slider
-        footer_height = st.slider("", 10, 100, 30, label_visibility="collapsed")
+        st.write("")
         
-        st.write("---") 
+        # SLIDERS
+        st.markdown("**📏 Area Wipers**")
+        header_height = st.slider("Top Header Height", 0, 150, 0)
+        footer_height = st.slider("Bottom Footer Height", 0, 150, 0)
+
+with col_preview:
+    if uploaded_file:
+        st.markdown("### 3. Live Preview (Page 1)")
         
-        # Auto-Process with enhanced spinner
-        with st.spinner("✨ Polishing pixels..."):
-            cleaned_data, page_count = process_pdf(uploaded_file.getvalue(), footer_height)
-            time.sleep(0.5)
+        # LIVE PREVIEW CONTAINER
+        with st.container():
+            # This runs fast because of caching
+            preview_img = get_preview_image(
+                uploaded_file.getvalue(), 
+                header_height, 
+                footer_height, 
+                text_input, 
+                match_case
+            )
+            
+            if preview_img:
+                st.image(preview_img, use_container_width=True)
+            else:
+                st.error("Could not load preview.")
+
+# --- 5. SINGLE ACTION BUTTON ---
+if uploaded_file:
+    st.write("---")
+    
+    # We use a placeholder to swap buttons
+    action_col1, action_col2, action_col3 = st.columns([1, 2, 1])
+    
+    with action_col2:
+        # LOGIC: 
+        # Since calculating full PDF is heavy, we put it behind a button.
+        # Once clicked, we show the download button immediately.
         
-        # --- RESULTS ---
-        # Success Message with Download
-        st.markdown(f'<div class="success-box">✨ {page_count} Pages Cleaned Successfully!</div>', unsafe_allow_html=True)
-        
-        st.download_button(
-            label="Download Cleaned PDF",
-            data=cleaned_data,
-            file_name=f"Clean_{uploaded_file.name}",
-            mime="application/pdf"
-        )
+        if "processed_data" not in st.session_state:
+            st.session_state.processed_data = None
+
+        # The "Trigger" Button
+        if st.button("⚡ Process & Prepare Download", type="primary", use_container_width=True):
+            with st.spinner("Processing full document..."):
+                # Run full process
+                st.session_state.processed_data = process_full_document(
+                    uploaded_file.getvalue(),
+                    header_height,
+                    footer_height,
+                    text_input,
+                    match_case
+                )
+                st.rerun() # Refresh to show download button
+
+        # If data is ready, show the Download Button
+        if st.session_state.processed_data:
+            st.download_button(
+                label="⬇️ Download Clean PDF Now",
+                data=st.session_state.processed_data,
+                file_name=f"Clean_{uploaded_file.name}",
+                mime="application/pdf",
+                use_container_width=True
+            )
+            # Optional: Reset button to start over
+            if st.button("Start Over"):
+                st.session_state.processed_data = None
+                st.rerun()
