@@ -11,15 +11,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. CLEAN CSS (Minimalist) ---
+# --- 2. CLEAN CSS (Minimalist & Safe) ---
 st.markdown("""
     <style>
     /* GLOBAL SETTINGS */
     * { font-family: 'Inter', sans-serif !important; }
     
-    /* REMOVE DEFAULT PADDING */
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-
     /* TITLE STYLE */
     h1 {
         font-weight: 800 !important;
@@ -37,29 +34,18 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* UPLOAD AREA - Glassy Look */
+    /* UPLOAD AREA */
     [data-testid="stFileUploader"] {
         background-color: #FAFAFA;
         border: 2px dashed #E5E7EB;
         border-radius: 15px;
         padding: 20px;
-        transition: border 0.2s ease;
     }
     [data-testid="stFileUploader"]:hover {
         border-color: #820AD1;
         background-color: #F8F5FF;
     }
 
-    /* PREVIEW CARD */
-    .preview-card {
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
-        padding: 15px;
-        background-color: #ffffff;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        text-align: center;
-    }
-    
     /* SUCCESS TOAST */
     .success-toast {
         background-color: #F0FDF4;
@@ -183,7 +169,7 @@ with col_left:
         with st.expander("🪄 Magic Text Eraser", expanded=True):
             t_col1, t_col2 = st.columns([2,1])
             with t_col1:
-                text_to_remove = st.text_input("Word to remove", placeholder="e.g. Confidential")
+                text_to_remove = st.text_input("Word to remove", placeholder="e.g. NotebookLM")
             with t_col2:
                 match_case = st.checkbox("Match Case", value=False)
                 whole_word = st.checkbox("Whole Word", value=True)
@@ -192,9 +178,9 @@ with col_left:
         st.write("")
         st.markdown("**📏 Area Wipers**")
         
-        # We use standard sliders now - NO custom CSS means they look perfect
-        header_height = st.slider("Header Height (Top)", 0, 150, 0, help="Removes page numbers or headers at the top.")
-        footer_height = st.slider("Footer Height (Bottom)", 0, 150, 0, help="Removes page numbers or footers at the bottom.")
+        # Native Streamlit Sliders (Bug Free)
+        header_height = st.slider("Header Height (Top)", 0, 150, 0)
+        footer_height = st.slider("Footer Height (Bottom)", 0, 150, 0)
 
 with col_right:
     if uploaded_file:
@@ -202,7 +188,6 @@ with col_right:
         
         # PREVIEW BOX
         with st.container():
-            # Minimal spinner for preview updates
             with st.spinner("Refreshing preview..."):
                 preview_img = generate_preview(
                     uploaded_file.getvalue(), 
@@ -212,9 +197,10 @@ with col_right:
                     match_case, 
                     whole_word
                 )
+                
                 if preview_img:
                     st.image(preview_img, use_container_width=True)
-                    st.caption("Page 1 Preview")
+                    st.caption("Page 1 Preview (Updates automatically)")
 
 # --- 5. ACTION BAR ---
 if uploaded_file:
@@ -225,7 +211,7 @@ if uploaded_file:
     with c2:
         if st.button("⚡ Process & Download", type="primary"):
             
-            # THE "BEAUTIFUL" LOADER (st.status)
+            # BEAUTIFUL LOADER
             with st.status("Processing Document...", expanded=True) as status:
                 st.write("🔍 Scanning pages...")
                 time.sleep(0.5)
