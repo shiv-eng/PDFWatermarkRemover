@@ -10,23 +10,24 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. REFINED CSS ---
+# --- 2. CLEAN & BALANCED CSS ---
 st.markdown("""
     <style>
     /* IMPORT FONTS */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
-    /* 1. LAYOUT & SPACING */
+    /* 1. LAYOUT RESET */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 3rem !important;
-        max-width: 1200px !important;
+        max-width: 1100px !important;
         margin: 0 auto !important;
     }
     
-    /* 2. HIDE DEFAULTS */
+    /* 2. UI CLEANUP */
     [data-testid="stHeader"] { display: none !important; }
     #MainMenu, footer { visibility: hidden; }
+    [data-testid="stAppViewContainer"] { background-color: #FFFFFF !important; }
     
     /* 3. TYPOGRAPHY */
     * { font-family: 'Inter', sans-serif !important; color: #111111; }
@@ -44,16 +45,16 @@ st.markdown("""
         color: #6B7280;
         font-size: 1.1rem;
         text-align: center;
-        margin-bottom: 30px;
+        margin-bottom: 40px;
         font-weight: 400;
     }
 
-    /* 4. UPLOAD BOX (Wider & Cleaner) */
+    /* 4. UPLOAD BOX (Balanced Width) */
     [data-testid="stFileUploader"] {
         background-color: #FAFAFA;
         border: 2px dashed #E5E7EB;
         border-radius: 16px;
-        padding: 30px;
+        padding: 20px;
         text-align: center;
     }
     [data-testid="stFileUploader"]:hover {
@@ -84,23 +85,28 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
     
-    /* 7. INPUTS */
+    /* 7. PAGE COUNT BADGE */
+    .page-badge {
+        background-color: #F3F4F6;
+        color: #6B7280;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-top: 5px;
+    }
+    
+    /* 8. INPUTS (Clean) */
     .stTextInput input {
         border: 1px solid #E5E7EB;
         border-radius: 8px;
         padding: 10px;
     }
     
-    /* Feature Cards */
-    .feature-card {
-        background: #FFFFFF;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #F3F4F6;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        height: 100%;
-    }
+    /* Feature Icons (No Box) */
+    .feature-icon { font-size: 1.5rem; margin-bottom: 5px; }
+    .feature-text { color: #666; font-size: 0.9rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -120,8 +126,9 @@ def clean_page_logic(page, header_h, footer_h, text_input, match_case):
         page.apply_redactions()
 
     rect = page.rect
-    clip_rect = fitz.Rect(0, rect.height - 10, 1, rect.height - 9)
-    pix = page.get_pixmap(clip=clip_rect)
+    # Smart color detection
+    clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
+    pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
     dynamic_color = (r/255, g/255, b/255)
 
@@ -158,57 +165,64 @@ def process_full_document(file_bytes, header_h, footer_h, txt, case):
 
 # Header
 st.markdown('<div class="hero-title">DocPolish</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-subtitle">Remove watermarks, footers, and clutter instantly.</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-subtitle">Professional Document Cleanser</div>', unsafe_allow_html=True)
 
-# UPLOAD SECTION - CENTERED & WIDER
-# Changed from [1, 2, 1] to [1, 3, 1] to make the box slightly wider
-c_up1, c_up2, c_up3 = st.columns([1, 3, 1])
+# UPLOAD SECTION (Visual Balance: 1-2-1 columns)
+c_up1, c_up2, c_up3 = st.columns([1, 2, 1])
 with c_up2:
     uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
+    
+    # Page Count Badge (Only visible if file exists)
+    if uploaded_file:
+        page_count = get_pdf_info(uploaded_file.getvalue())
+        st.markdown(f'<div style="text-align: center;"><span class="page-badge">📄 {page_count} Pages Detected</span></div>', unsafe_allow_html=True)
 
-# --- SCENARIO 1: NO FILE ---
+# --- STATE 1: NO FILE ---
 if not uploaded_file:
     st.write("")
     st.write("")
-    c1, c2, c3 = st.columns(3, gap="medium")
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("""<div class="feature-card"><b>🪄 Magic Eraser</b><br><span style="color:#666; font-size:0.9rem">Type words to auto-remove them.</span></div>""", unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center;"><div class="feature-icon">🪄</div><b>Magic Eraser</b><div class="feature-text">Type words to vanish them.</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown("""<div class="feature-card"><b>📏 Area Wipers</b><br><span style="color:#666; font-size:0.9rem">Clean headers & footers precisely.</span></div>""", unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center;"><div class="feature-icon">📏</div><b>Area Wipers</b><div class="feature-text">Clean headers & footers.</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown("""<div class="feature-card"><b>🔒 100% Private</b><br><span style="color:#666; font-size:0.9rem">Processed locally in browser memory.</span></div>""", unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center;"><div class="feature-icon">🔒</div><b>100% Private</b><div class="feature-text">Processed locally in browser.</div></div>', unsafe_allow_html=True)
 
-# --- SCENARIO 2: WORKSPACE ---
+# --- STATE 2: WORKSPACE ---
 else:
-    # REMOVED EXTRA TEXT LINE HERE
     st.write("---")
 
-    # STUDIO UI
+    # MAIN STUDIO (Left Controls | Right Preview)
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        st.markdown("**🪄 Magic Text Eraser**")
+        st.markdown("### 🪄 Magic Text Eraser")
         text_input = st.text_input("keywords", placeholder="e.g. Confidential, Draft", label_visibility="collapsed")
         match_case = st.checkbox("Match Case", value=False)
         st.caption("Removes specific words/phrases.")
         
         st.write("") 
         
-        st.markdown("**📏 Area Wipers (Pixels)**")
-        header_height = st.slider("Top Header", 0, 150, 0)
-        footer_height = st.slider("Bottom Footer", 0, 150, 0)
+        st.markdown("### 📏 Area Wipers")
+        
+        st.caption("Top Header")
+        header_height = st.slider("Header", 0, 150, 0, label_visibility="collapsed")
+        
+        st.caption("Bottom Footer")
+        footer_height = st.slider("Footer", 0, 150, 0, label_visibility="collapsed")
 
     with col_right:
-        st.markdown("**👁️ Live Preview (Page 1)**")
+        st.markdown("### 👁️ Live Preview")
         preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
         if preview_img:
-            # RESTRICTED WIDTH PREVIEW (Pleasing size)
+            # RESTRICTED WIDTH (Matches left column weight)
             st.image(preview_img, width=350)
 
-    # ACTION
+    # ACTION AREA
     st.write("---")
-    c_act1, c_act2, c_act3 = st.columns([1, 2, 1])
-    with c_act2:
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
         final_pdf_data = process_full_document(
             uploaded_file.getvalue(), 
             header_height, 
