@@ -6,8 +6,8 @@ from collections import Counter
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="DocPolish",
-    page_icon="✨",
+    page_title="PDF Watermark Remover",
+    page_icon="💧", 
     layout="wide"
 )
 
@@ -22,7 +22,6 @@ st.markdown("""
     }
 
     /* 2. PROTECT ICONS (CRITICAL FIX) */
-    /* This forces the arrow icons to use their correct internal font, overriding our 'Inter' font */
     [data-testid="stExpander"] svg, [class*="material-symbols"], .st-emotion-cache-1pbqwg9 {
         font-family: 'Material Symbols Rounded' !important;
     }
@@ -36,15 +35,15 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     [data-testid="stFileUploader"]:hover {
-        border-color: #764BA2;
-        background-color: #FDFBFF;
+        border-color: #3B82F6; /* Blue for "Water" theme */
+        background-color: #EFF6FF;
     }
 
     /* 4. Notification Box */
     .auto-detect-box {
-        background: linear-gradient(to right, #ECFDF5, #F0FDF4);
-        border: 1px solid #A7F3D0;
-        color: #065F46;
+        background: linear-gradient(to right, #EFF6FF, #DBEAFE);
+        border: 1px solid #BFDBFE;
+        color: #1E40AF;
         padding: 12px 20px;
         border-radius: 12px;
         font-size: 0.95rem;
@@ -59,7 +58,8 @@ st.markdown("""
     }
     .hero-title {
         font-weight: 800;
-        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+        /* Blue/Teal gradient for "Watermark" theme */
+        background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-size: 3.5rem;
@@ -74,7 +74,7 @@ st.markdown("""
 
     /* 6. Button Styling */
     .stDownloadButton > button {
-        background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+        background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
         color: white !important;
         border: none;
         padding: 0.6rem 2rem;
@@ -84,7 +84,7 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     .stDownloadButton > button:hover {
-        box-shadow: 0 10px 15px -3px rgba(118, 75, 162, 0.4);
+        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
         transform: translateY(-2px);
     }
     
@@ -131,7 +131,6 @@ def clean_page_logic(page, header_h, footer_h, text_input, match_case):
         page.apply_redactions()
 
     rect = page.rect
-    # Smart color detection
     clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
     pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
@@ -152,7 +151,6 @@ def get_preview_image(file_bytes, header_h, footer_h, txt, case):
     if len(doc) < 1: return None
     page = doc[0]
     clean_page_logic(page, header_h, footer_h, txt, case)
-    # Kept DPI high (150) for readability, we control size via display width
     pix = page.get_pixmap(dpi=150) 
     return Image.open(io.BytesIO(pix.tobytes("png")))
 
@@ -172,24 +170,23 @@ def process_full_document(file_bytes, header_h, footer_h, txt, case):
 # HERO SECTION
 st.markdown("""
 <div class="hero-container">
-    <div class="hero-title">DocPolish</div>
-    <div class="hero-subtitle">Intelligent Document Cleanser & Sanitizer</div>
+    <div class="hero-title">PDF Watermark Remover</div>
+    <div class="hero-subtitle">Clean, Professional, and Private Document Processing</div>
 </div>
 """, unsafe_allow_html=True)
 
 # UPLOAD SECTION
 c1, c2, c3 = st.columns([1, 6, 1])
 with c2:
-    uploaded_file = st.file_uploader("Drop your PDF here", type="pdf", label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Drop your PDF here to start", type="pdf", label_visibility="collapsed")
 
 # --- LOGIC HANDLING ---
 if uploaded_file:
     file_bytes = uploaded_file.getvalue()
     
-    # Auto-Detect Logic (Run Once)
     if "current_file" not in st.session_state or st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
-        with st.spinner("🤖 AI is scanning document structure..."):
+        with st.spinner("🔍 Scanning for watermarks..."):
             detected_keywords = detect_watermark_candidates(file_bytes)
             st.session_state.auto_keywords = detected_keywords
             st.session_state.header_h = 0
@@ -202,51 +199,45 @@ if not uploaded_file:
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown('### ⚡ Auto-Detection')
-        st.caption("Smart algorithms instantly find repeated watermarks.")
+        st.markdown('### ⚡ Auto-Detect')
+        st.caption("Identifies repetitive text and watermarks automatically.")
     with col2:
-        st.markdown('### 🎨 Smart Inpainting')
-        st.caption("Fills gaps with dynamic background color matching.")
+        st.markdown('### 🎨 Smart Fill')
+        st.caption("Replaces removed areas with matching background color.")
     with col3:
-        st.markdown('### 🔒 Secure & Private')
-        st.caption("All processing happens in memory. No data storage.")
+        st.markdown('### 🛡️ Private & Secure')
+        st.caption("No server uploads. Your files never leave your browser.")
 
 # --- STATE 2: WORKSPACE (File Loaded) ---
 else:
-    # Retrieve State
     default_keywords = st.session_state.get("auto_keywords", "")
     
-    # 1. NOTIFICATION
     if default_keywords:
         st.markdown(f"""
         <div class="auto-detect-box">
-            ✨ <b>AI Detected Watermarks:</b> Found potential watermarks: <u>{default_keywords}</u>
+            🎯 <b>Auto-Detection:</b> Found potential watermarks: <u>{default_keywords}</u>
         </div>
         """, unsafe_allow_html=True)
 
-    # 2. MAIN CARD LAYOUT (Using native st.container for border)
     with st.container(border=True):
         
-        # Changed Layout: 3 parts Settings, 2 parts Preview (Preview is smaller)
         col_settings, col_preview = st.columns([3, 2], gap="large")
         
         # LEFT: SETTINGS
         with col_settings:
-            st.subheader("🛠️ Controls")
+            st.subheader("🛠️ Removal Settings")
             
-            # Simple Expander for Advanced
-            with st.expander("Adjust Cleaning Settings", expanded=False):
-                st.markdown("**📝 Text Removal**")
-                text_input = st.text_input("Keywords", value=default_keywords, label_visibility="collapsed")
+            with st.expander("Advanced Options", expanded=False):
+                st.markdown("**📝 Text Watermarks**")
+                text_input = st.text_input("Keywords to remove", value=default_keywords, label_visibility="collapsed")
                 match_case = st.checkbox("Match Case", value=False)
                 
                 st.markdown("---")
                 
-                st.markdown("**📐 Boundary Removal**")
-                header_height = st.slider("Header Size", 0, 150, st.session_state.get("header_h", 0))
-                footer_height = st.slider("Footer Size", 0, 150, st.session_state.get("footer_h", 0))
+                st.markdown("**✂️ Header & Footer**")
+                header_height = st.slider("Top Margin Cut", 0, 150, st.session_state.get("header_h", 0))
+                footer_height = st.slider("Bottom Margin Cut", 0, 150, st.session_state.get("footer_h", 0))
 
-            # DOWNLOAD ACTION
             st.write("")
             final_pdf_data = process_full_document(
                 uploaded_file.getvalue(), 
@@ -256,7 +247,7 @@ else:
                 match_case
             )
             st.download_button(
-                label="🚀 Process & Download PDF",
+                label="📥 Download Clean PDF",
                 data=final_pdf_data,
                 file_name=f"Clean_{uploaded_file.name}",
                 mime="application/pdf"
@@ -264,10 +255,9 @@ else:
 
         # RIGHT: PREVIEW
         with col_preview:
-            st.subheader("👁️ Live Preview")
+            st.subheader("👁️ Preview")
             preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
             if preview_img:
-                # Fixed Width to 450px to prevent it from being "too large"
                 st.image(preview_img, width=450)
             else:
                 st.info("Preview unavailable for this file.")
