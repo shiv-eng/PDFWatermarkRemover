@@ -206,4 +206,51 @@ with col_right:
             with st.spinner("Refreshing preview..."):
                 preview_img = generate_preview(
                     uploaded_file.getvalue(), 
-                    header_height,
+                    header_height, 
+                    footer_height, 
+                    text_to_remove, 
+                    match_case, 
+                    whole_word
+                )
+                if preview_img:
+                    st.image(preview_img, use_container_width=True)
+                    st.caption("Page 1 Preview")
+
+# --- 5. ACTION BAR ---
+if uploaded_file:
+    st.write("---")
+    
+    # Centered Download Area
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if st.button("⚡ Process & Download", type="primary"):
+            
+            # THE "BEAUTIFUL" LOADER (st.status)
+            with st.status("Processing Document...", expanded=True) as status:
+                st.write("🔍 Scanning pages...")
+                time.sleep(0.5)
+                st.write("🪄 Removing watermarks...")
+                time.sleep(0.5)
+                
+                # Actual Processing
+                cleaned_data, page_count = process_all_pages(
+                    uploaded_file.getvalue(), 
+                    header_height, 
+                    footer_height, 
+                    text_to_remove, 
+                    match_case, 
+                    whole_word
+                )
+                
+                status.update(label="✅ Ready!", state="complete", expanded=False)
+            
+            # Results
+            st.balloons()
+            st.markdown(f'<div class="success-toast">Successfully Cleaned {page_count} Pages</div>', unsafe_allow_html=True)
+            
+            st.download_button(
+                label="⬇️ Click to Download PDF",
+                data=cleaned_data,
+                file_name=f"Clean_{uploaded_file.name}",
+                mime="application/pdf"
+            )
