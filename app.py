@@ -5,7 +5,7 @@ import time
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="DocPolish | Nu Edition",
+    page_title="DocPolish",
     page_icon="🟣",
     layout="centered"
 )
@@ -13,97 +13,81 @@ st.set_page_config(
 # --- 2. HIGH-END NU CSS ---
 st.markdown("""
     <style>
-    /* IMPORT MODERN FONT */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
-
-    /* GLOBAL RESET */
+    /* FORCE LIGHT THEME (Crucial for Nu Look) */
+    [data-testid="stAppViewContainer"] {
+        background-color: #FFFFFF !important;
+    }
+    [data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* GLOBAL FONTS & COLORS */
     * {
         font-family: 'Inter', sans-serif !important;
+        color: #111111;
     }
 
-    /* APP BACKGROUND */
-    .stApp {
-        background-color: #FFFFFF;
-    }
-
-    /* --- TYPOGRAPHY --- */
+    /* TYPOGRAPHY */
     h1 {
         font-weight: 800 !important;
         letter-spacing: -0.03em !important;
         color: #820AD1 !important; /* Nu Purple */
-        font-size: 3.5rem !important;
+        font-size: 3rem !important;
         text-align: center;
         margin-bottom: 0px !important;
-        padding-top: 20px !important;
+        padding-top: 10px !important;
     }
     
     p.subtitle {
         text-align: center;
-        color: #737373;
+        color: #6B7280 !important;
         font-size: 1.1rem;
         margin-top: 5px;
-        margin-bottom: 40px;
+        margin-bottom: 30px;
         font-weight: 400;
     }
 
-    /* --- THE PREMIUM UPLOAD CARD --- */
+    /* PREMIUM UPLOAD CARD */
     [data-testid="stFileUploader"] {
-        background-color: #F8F9FA; /* Very light grey */
+        background-color: #F8F9FA; 
         border: 2px dashed #E5E7EB;
-        border-radius: 24px;
-        padding: 40px 20px;
+        border-radius: 20px;
+        padding: 30px;
         text-align: center;
-        transition: all 0.3s ease;
     }
-    
     [data-testid="stFileUploader"]:hover {
-        border-color: #820AD1; /* Purple border on hover */
-        background-color: #F3E8FF; /* Light purple tint */
-        box-shadow: 0 10px 30px -10px rgba(130, 10, 209, 0.15);
-    }
-    
-    /* Small text inside uploader */
-    [data-testid="stFileUploader"] section > div {
-        color: #6B7280;
+        border-color: #820AD1;
+        background-color: #F3E8FF;
     }
 
-    /* --- CENTERED DOWNLOAD BUTTON --- */
+    /* CENTERED PILL BUTTON */
     .stDownloadButton > button {
         background-color: #820AD1 !important;
         color: white !important;
-        border-radius: 50px !important; /* Pill Shape */
+        border-radius: 50px !important;
         padding: 0.8rem 3rem !important;
         font-weight: 600 !important;
         font-size: 1.1rem !important;
         border: none !important;
         box-shadow: 0 4px 15px rgba(130, 10, 209, 0.3) !important;
-        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important; /* Bouncy animation */
         width: 100%;
+        transition: transform 0.2s;
     }
-    
     .stDownloadButton > button:hover {
         background-color: #6D08AF !important;
-        transform: translateY(-4px) scale(1.02);
-        box-shadow: 0 10px 25px rgba(130, 10, 209, 0.4) !important;
+        transform: scale(1.02);
     }
 
-    /* --- SLIDER COLOR --- */
-    div[data-baseweb="slider"] div {
-        background-color: #820AD1 !important;
-    }
-
-    /* --- SUCCESS NOTIFICATION --- */
+    /* SUCCESS BUBBLE */
     .success-bubble {
-        text-align: center;
-        background-color: #F3E8FF; /* Light Purple */
+        background-color: #F3E8FF;
         color: #6D08AF;
-        padding: 12px 24px;
-        border-radius: 30px;
+        padding: 10px 20px;
+        border-radius: 20px;
         font-weight: 600;
-        font-size: 0.95rem;
+        text-align: center;
         display: inline-block;
         margin-bottom: 20px;
-        border: 1px solid #D8B4FE;
     }
 
     /* HIDE CHROME */
@@ -137,46 +121,52 @@ def process_pdf(input_bytes, footer_height):
     output_buffer.seek(0)
     return output_buffer, len(doc)
 
-# --- 4. THE UI LAYOUT ---
+# --- 4. THE UI ---
 
 # Header
 st.markdown('<h1>DocPolish</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">The simplest way to clean your documents.</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Simple. Transparent. Clean.</p>', unsafe_allow_html=True)
 
-# Main Area
-c_outer_1, c_outer_2, c_outer_3 = st.columns([1, 8, 1])
+# Main Interaction Area
+c1, c2, c3 = st.columns([1, 8, 1])
 
-with c_outer_2:
-    uploaded_file = st.file_uploader("Drop PDF here", type="pdf")
+with c2:
+    uploaded_file = st.file_uploader("Drop your PDF here", type="pdf")
     
     if uploaded_file:
-        st.write("") # Spacer
+        st.write("") 
         
-        # Purple Slider
+        # --- NEW CONTEXT SECTION ---
         st.markdown("**Cleaning Depth**")
-        footer_height = st.slider("", 10, 100, 30, label_visibility="collapsed")
-        
-        st.write("---") # Visual Divider
-        
-        # Processing
-        with st.spinner("Polishing pixels..."):
-            cleaned_data, page_count = process_pdf(uploaded_file.getvalue(), footer_height)
-            time.sleep(0.5)
-        
-        # Success Badge (Centered)
         st.markdown(
-            f"""
-            <div style="text-align: center;">
-                <div class="success-bubble">
-                    ✨ {page_count} Pages Processed Successfully
-                </div>
+            """
+            <div style="color: #666; font-size: 0.9rem; margin-bottom: 10px; margin-top: -15px;">
+            Controls how much area from the bottom of the page is removed (in pixels). 
+            <br><i>Increase this slider if the footer text is still visible.</i>
             </div>
             """, 
             unsafe_allow_html=True
         )
         
-        # CENTERED BUTTON LAYOUT
-        # We use columns inside columns to pinch the button into the center
+        # Standard Slider (No CSS hacks to prevent the block glitch)
+        footer_height = st.slider("", 10, 100, 30, label_visibility="collapsed")
+        
+        st.write("---") 
+        
+        # Auto-Process
+        with st.spinner("Polishing pixels..."):
+            cleaned_data, page_count = process_pdf(uploaded_file.getvalue(), footer_height)
+            time.sleep(0.5)
+        
+        # Centered Success Badge
+        st.markdown(
+            f"""<div style="text-align: center;">
+                <div class="success-bubble">✨ {page_count} Pages Cleaned</div>
+            </div>""", 
+            unsafe_allow_html=True
+        )
+        
+        # Centered Download Button
         b1, b2, b3 = st.columns([1, 2, 1])
         with b2:
             st.download_button(
@@ -190,18 +180,18 @@ with c_outer_2:
 st.write("")
 st.write("")
 st.markdown("""
-<div style="display: flex; justify-content: center; gap: 40px; margin-top: 50px; opacity: 0.7;">
+<div style="display: flex; justify-content: center; gap: 40px; margin-top: 30px; opacity: 0.8;">
     <div style="text-align: center;">
-        <span style="font-size: 1.5rem; color: #820AD1;">🔒</span>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #111;">Private</div>
+        <span style="font-size: 1.5rem;">🔒</span>
+        <div style="font-size: 0.8rem; font-weight: 600;">Private</div>
     </div>
     <div style="text-align: center;">
-        <span style="font-size: 1.5rem; color: #820AD1;">⚡</span>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #111;">Instant</div>
+        <span style="font-size: 1.5rem;">⚡</span>
+        <div style="font-size: 0.8rem; font-weight: 600;">Instant</div>
     </div>
     <div style="text-align: center;">
-        <span style="font-size: 1.5rem; color: #820AD1;">💎</span>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #111;">Free</div>
+        <span style="font-size: 1.5rem;">💎</span>
+        <div style="font-size: 0.8rem; font-weight: 600;">Free</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
