@@ -11,26 +11,31 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. CLEAN CSS (Minimalist & Safe) ---
+# --- 2. CLEAN CSS (Fixes Font Bugs) ---
 st.markdown("""
     <style>
-    /* GLOBAL SETTINGS */
-    * { font-family: 'Inter', sans-serif !important; }
+    /* GLOBAL SETTINGS - Targeted to avoid breaking icons */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
     
+    /* REMOVE DEFAULT PADDING */
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+
     /* TITLE STYLE */
     h1 {
         font-weight: 800 !important;
         background: -webkit-linear-gradient(45deg, #820AD1, #B220E8);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 3rem !important;
+        font-size: 2.5rem !important;
         margin-bottom: 0.5rem !important;
     }
     
     /* SUBTITLE */
     .subtitle {
         color: #6B7280;
-        font-size: 1.1rem;
+        font-size: 1rem;
         margin-bottom: 2rem;
     }
 
@@ -39,23 +44,30 @@ st.markdown("""
         background-color: #FAFAFA;
         border: 2px dashed #E5E7EB;
         border-radius: 15px;
-        padding: 20px;
+        padding: 15px;
     }
     [data-testid="stFileUploader"]:hover {
         border-color: #820AD1;
         background-color: #F8F5FF;
     }
 
-    /* SUCCESS TOAST */
-    .success-toast {
-        background-color: #F0FDF4;
-        color: #15803D;
-        padding: 12px;
-        border-radius: 10px;
-        border: 1px solid #DCFCE7;
-        text-align: center;
-        font-weight: 600;
-        margin-top: 1rem;
+    /* TOOL CARDS (Replaces Expanders) */
+    .tool-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .tool-header {
+        font-weight: 700;
+        color: #111;
+        margin-bottom: 5px;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     /* DOWNLOAD BUTTON */
@@ -132,7 +144,7 @@ def generate_preview(input_bytes, header_height, footer_height, text_to_remove, 
     if len(doc) < 1: return None
     page = doc[0]
     clean_page(page, header_height, footer_height, text_to_remove, match_case, whole_word)
-    pix = page.get_pixmap(dpi=100)
+    pix = page.get_pixmap(dpi=120)
     return Image.open(io.BytesIO(pix.tobytes("png")))
 
 def process_all_pages(input_bytes, header_height, footer_height, text_to_remove, match_case, whole_word):
@@ -152,7 +164,7 @@ def process_all_pages(input_bytes, header_height, footer_height, text_to_remove,
 
 # Header Section
 st.markdown('<h1>DocPolish</h1>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Intelligent Document Cleanser</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Professional Document Cleanser</div>', unsafe_allow_html=True)
 
 # Two Column Layout
 col_left, col_right = st.columns([1, 1], gap="large")
@@ -165,22 +177,24 @@ with col_left:
         st.write("")
         st.markdown("### 2. Controls")
         
-        # MAGIC ERASER
-        with st.expander("🪄 Magic Text Eraser", expanded=True):
-            t_col1, t_col2 = st.columns([2,1])
-            with t_col1:
-                text_to_remove = st.text_input("Word to remove", placeholder="e.g. NotebookLM")
-            with t_col2:
-                match_case = st.checkbox("Match Case", value=False)
-                whole_word = st.checkbox("Whole Word", value=True)
+        # --- MAGIC ERASER CARD ---
+        st.markdown('<div class="tool-card"><div class="tool-header">🪄 Magic Text Eraser</div>', unsafe_allow_html=True)
+        t_col1, t_col2 = st.columns([2,1])
+        with t_col1:
+            text_to_remove = st.text_input("Word to remove", placeholder="e.g. Confidential")
+        with t_col2:
+            match_case = st.checkbox("Match Case", value=False)
+            whole_word = st.checkbox("Whole Word", value=True)
+        st.caption("Removes specific words from anywhere on the page.")
+        st.markdown('</div>', unsafe_allow_html=True) # End card
         
-        # SLIDERS (Header & Footer)
-        st.write("")
-        st.markdown("**📏 Area Wipers**")
+        # --- SLIDERS CARD ---
+        st.markdown('<div class="tool-card"><div class="tool-header">📏 Area Wipers</div>', unsafe_allow_html=True)
         
-        # Native Streamlit Sliders (Bug Free)
         header_height = st.slider("Header Height (Top)", 0, 150, 0)
         footer_height = st.slider("Footer Height (Bottom)", 0, 150, 0)
+        st.caption("Slide to cover persistent headers or footers.")
+        st.markdown('</div>', unsafe_allow_html=True) # End card
 
 with col_right:
     if uploaded_file:
@@ -217,6 +231,7 @@ if uploaded_file:
                 time.sleep(0.5)
                 st.write("🪄 Removing watermarks...")
                 time.sleep(0.5)
+                st.write("💾 Compressing file...")
                 
                 # Actual Processing
                 cleaned_data, page_count = process_all_pages(
@@ -232,7 +247,7 @@ if uploaded_file:
             
             # Results
             st.balloons()
-            st.markdown(f'<div class="success-toast">Successfully Cleaned {page_count} Pages</div>', unsafe_allow_html=True)
+            st.success(f"Successfully Cleaned {page_count} Pages")
             
             st.download_button(
                 label="⬇️ Click to Download PDF",
