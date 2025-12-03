@@ -5,7 +5,7 @@ import time
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="DocPolish",
+    page_title="DocPolish | watermarkRemover",
     page_icon="🟣",
     layout="centered"
 )
