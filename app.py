@@ -182,7 +182,7 @@ if uploaded_file:
             st.session_state.auto_keywords = detect_watermark_candidates(file_bytes)
             # Reset sliders
             st.session_state.header_val = 0
-            st.session_state.footer_val = 25 # <--- MODIFIED: Default to 25
+            st.session_state.footer_val = 0
             # Set text input default
             st.session_state.text_val = st.session_state.auto_keywords
 
@@ -202,10 +202,9 @@ if not uploaded_file:
 
 else:
     # Check if we should keep expander open
-    # We logic checks: Only expand if settings deviate from their DEFAULTS.
+    # If any value is "active" (non-zero or changed), we default to True
     header_active = st.session_state.get("header_val", 0) > 0
-    # Footer is only considered "Active" if user changes it from the default 25
-    footer_active = st.session_state.get("footer_val", 25) != 25 
+    footer_active = st.session_state.get("footer_val", 0) > 0
     text_active = st.session_state.get("text_val", "") != st.session_state.get("auto_keywords", "")
     should_expand = header_active or footer_active or text_active
 
@@ -222,7 +221,7 @@ else:
         with col_settings:
             st.subheader("🛠️ Removal Settings")
             
-            # FIXED: logic for keeping it open based on usage
+            # FIXED: logic for keeping it open
             with st.expander("Advanced Options", expanded=should_expand):
                 
                 st.markdown("**📝 Text Watermarks**")
