@@ -182,7 +182,11 @@ if uploaded_file:
             st.session_state.auto_keywords = detect_watermark_candidates(file_bytes)
             # Reset sliders
             st.session_state.header_val = 0
-            st.session_state.footer_val = 0
+            
+            # --- MODIFICATION START: Set default footer cut to 25 ---
+            st.session_state.footer_val = 25 
+            # --- MODIFICATION END ---
+
             # Set text input default
             st.session_state.text_val = st.session_state.auto_keywords
 
