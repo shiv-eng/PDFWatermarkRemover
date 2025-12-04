@@ -158,14 +158,11 @@ def process_full_document(file_bytes, header_h, footer_h, txt, case):
 
 # --- 4. UI LAYOUT ---
 
-# ADDED: Visitor Badge Image
+# REMOVED: Visitor Badge from Hero (Moved to bottom)
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">PDF Watermark Remover</div>
     <div class="hero-subtitle">Clean, Professional, and Private Document Processing</div>
-    <div style="margin-top: 15px;">
-        <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fpdfwatermarkremover.streamlit.app&count_bg=%232563EB&title_bg=%231F2937&icon=&icon_color=%23E7E7E7&title=Total+Visits&edge_flat=false" alt="Visitor Count">
-    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -277,3 +274,10 @@ else:
                 st.image(preview_img, width=450)
             else:
                 st.info("Preview unavailable.")
+
+# --- FOOTER ---
+st.markdown("""
+<div style="text-align: center; margin-top: 60px; border-top: 1px solid #E5E7EB; padding-top: 20px;">
+    <img src="https://visitor-badge.laobi.icu/badge?page_id=pdfwatermarkremover.streamlit.app&left_text=Total%20Visits&left_color=%231F2937&right_color=%232563EB" alt="Visitor Count">
+</div>
+""", unsafe_allow_html=True)
