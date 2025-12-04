@@ -116,47 +116,46 @@ def detect_watermark_candidates(file_bytes):
     return ", ".join(suggestions)
 
 def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
-    # PREPARE KEYWORDS
+    # 1. TEXT REMOVAL (Aggressive Word-Hunter Mode)
     if keywords_str:
         keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
         
-        # STRATEGY 1: Exact Phrase Search (Standard)
-        for keyword in keywords:
-            quads = page.search_for(keyword)
-            for quad in quads:
-                if match_case:
-                    res = page.get_text("text", clip=quad).strip()
-                    if keyword not in res: continue
-                page.add_redact_annot(quad, fill=None)
+        # Get every individual word on the page with coordinates
+        # words = [(x0, y0, x1, y1, "text", ...), ...]
+        words = page.get_text("words")
         
-        # STRATEGY 2: Block-Based Hunt (Aggressive)
-        # This catches "NotebookLM" even if spacing is weird or search fails
-        blocks = page.get_text("blocks")
-        for block in blocks:
-            # block format: (x0, y0, x1, y1, "text content", block_no, block_type)
-            b_text = block[4]
-            b_rect = fitz.Rect(block[:4])
+        for w in words:
+            word_text = w[4]
+            word_rect = fitz.Rect(w[0], w[1], w[2], w[3])
             
-            for keyword in keywords:
-                # Check if keyword is inside this text block
-                check_text = b_text if match_case else b_text.lower()
-                check_key = keyword if match_case else keyword.lower()
+            # Check against keywords
+            for key in keywords:
+                # Comparison logic
+                target = key if match_case else key.lower()
+                candidate = word_text if match_case else word_text.lower()
                 
-                if check_key in check_text:
-                    # Found it! Redact the WHOLE block area
-                    page.add_redact_annot(b_rect, fill=None)
-
-        # Apply all redactions from both strategies
+                # If the keyword is "NotebookLM", we want to catch it even if it's attached to punctuation
+                if target in candidate:
+                    page.add_redact_annot(word_rect, fill=None)
+        
         page.apply_redactions()
 
+    # 2. LINK REMOVAL (NotebookLM often adds clickable links at the bottom)
+    # We remove any links found in the bottom 10% of the page
+    links = page.get_links()
+    for link in links:
+        # Check if link is in the bottom footer area
+        if link['from'].y0 > page.rect.height * 0.9:
+            page.delete_link(link)
+
+    # 3. COLOR MASKING (Smart Inpainting)
     rect = page.rect
-    # 2. Smart color detection
     clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
     pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
     dynamic_color = (r/255, g/255, b/255)
 
-    # 3. Area Wiping (Header/Footer)
+    # 4. AREA WIPING (Header/Footer Sliders)
     if footer_h > 0:
         page.draw_rect(fitz.Rect(0, rect.height - footer_h, rect.width, rect.height), color=dynamic_color, fill=dynamic_color)
     if header_h > 0:
@@ -247,7 +246,7 @@ else:
                 text_input = st.text_input(
                     "Keywords", 
                     key="text_val",
-                    help="Enter 'NotebookLM' here. This mode now aggressively targets the entire text block containing these words."
+                    help="Enter specific words to erase (e.g., 'NotebookLM')."
                 )
                 match_case = st.checkbox(
                     "Match Case", 
