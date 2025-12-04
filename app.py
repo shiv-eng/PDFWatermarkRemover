@@ -151,35 +151,25 @@ c1, c2, c3 = st.columns([1, 6, 1])
 with c2:
     uploaded_file = st.file_uploader("Drop your PDF here to start", type="pdf", label_visibility="collapsed")
 
-# 2. LOADER & INITIALIZATION (THE FIX)
+# 2. INVISIBLE INITIALIZATION
 if uploaded_file:
     file_bytes = uploaded_file.getvalue()
     
-    # Define a signature for the file to know if it's new
     file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
     
     # IF NEW FILE (or first run):
     if "current_file_signature" not in st.session_state or st.session_state.current_file_signature != file_signature:
         
-        # A. Show the LOADER Container
-        with st.status("🚀 initializing auto-clean...", expanded=True) as status:
-            st.write("Scanning document for text...")
+        # We use a spinner instead of st.status so it disappears completely
+        with st.spinner("🚀 Initializing auto-clean..."):
             detected_txt = detect_watermark_candidates(file_bytes)
-            time.sleep(0.3) # Tiny visual pause so user sees the step
             
-            st.write("Configuring smart-removal tools...")
             # Generate FRESH ID to force slider reset
             new_uid = uuid.uuid4().hex
             st.session_state.unique_session_id = new_uid
             st.session_state.detected_text = detected_txt
             st.session_state.current_file_signature = file_signature
-            time.sleep(0.3)
-            
-            st.write("Applying default Footer Cut (25px)...")
-            # We don't need to 'set' the slider here, the unique ID in the slider widget below does it.
-            time.sleep(0.3)
-            
-            status.update(label="✅ Ready! Auto-Clean Applied.", state="complete", expanded=False)
+            time.sleep(0.5) # Short pause to ensure state settles
             
 # 3. MAIN INTERFACE
 if not uploaded_file:
@@ -196,17 +186,18 @@ if not uploaded_file:
         st.caption("Files are processed in memory only.")
 
 else:
-    # Notification Box showing what happened
+    # Notification Box - CLEANED UP TEXT
+    detected_msg = st.session_state.get('detected_text', 'None')
     st.markdown(f"""
     <div class="auto-detect-box">
-        ✨ <b>Auto-Applied:</b> Removed bottom 25px (Footer) & detected watermarks: <i>{st.session_state.get('detected_text', 'None')}</i>
+        ✨ <b>Auto-Clean Applied!</b> Detected watermarks: <i>{detected_msg}</i>
     </div>
     """, unsafe_allow_html=True)
 
     with st.container(border=True):
         col_settings, col_preview = st.columns([3, 2], gap="large")
         
-        # RETRIEVE THE UNIQUE ID generated in the loader step
+        # RETRIEVE THE UNIQUE ID
         uid = st.session_state.get("unique_session_id", "default_1")
         
         with col_settings:
@@ -228,8 +219,7 @@ else:
                 st.markdown("**✂️ Header & Footer Cutters**")
                 
                 # --- AUTO-SLIDERS ---
-                # Because 'uid' is brand new from the loader step, 
-                # this slider initializes at 'value=25' immediately.
+                # Initialized to 0 and 25 respectively
                 
                 header_height = st.slider(
                     "Top Margin Cut", 0, 150, 
@@ -248,9 +238,6 @@ else:
             st.write("")
             
             # 4. PROCESSING 
-            # This function runs immediately. 
-            # Since footer_height comes from the slider above (which defaults to 25),
-            # this function receives 25.
             final_pdf_data = process_full_document(
                 uploaded_file.getvalue(), 
                 header_height, 
