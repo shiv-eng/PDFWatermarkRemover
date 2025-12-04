@@ -90,9 +90,6 @@ st.markdown("""
 # --- 3. LOGIC ---
 
 def detect_watermark_candidates(file_bytes):
-    """
-    Scans for 'NotebookLM' specifically and other frequent lines.
-    """
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     page_limit = min(10, len(doc)) 
     line_counts = Counter()
@@ -100,15 +97,12 @@ def detect_watermark_candidates(file_bytes):
     for i in range(page_limit):
         page = doc[i]
         text_content = page.get_text("text")
-        # Split by lines and clean
         lines = [line.strip() for line in text_content.split('\n') if len(line.strip()) > 2]
         line_counts.update(lines)
 
     threshold = max(2, int(page_limit * 0.4))
     suggestions = [text for text, count in line_counts.items() if count >= threshold]
     
-    # FORCE 'NotebookLM' into suggestions if it exists anywhere in the doc
-    # We check keys loosely to catch 'NotebookLM ' or ' NotebookLM'
     found_notebook = any("notebooklm" in k.lower() for k in line_counts.keys())
     if found_notebook and "NotebookLM" not in suggestions:
         suggestions.append("NotebookLM")
@@ -116,46 +110,42 @@ def detect_watermark_candidates(file_bytes):
     return ", ".join(suggestions)
 
 def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
-    # 1. TEXT REMOVAL (Aggressive Word-Hunter Mode)
+    # 1. TEXT REMOVAL (Still attempting this as a fallback)
     if keywords_str:
         keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-        
-        # Get every individual word on the page with coordinates
-        # words = [(x0, y0, x1, y1, "text", ...), ...]
         words = page.get_text("words")
-        
         for w in words:
             word_text = w[4]
             word_rect = fitz.Rect(w[0], w[1], w[2], w[3])
-            
-            # Check against keywords
             for key in keywords:
-                # Comparison logic
                 target = key if match_case else key.lower()
                 candidate = word_text if match_case else word_text.lower()
-                
-                # If the keyword is "NotebookLM", we want to catch it even if it's attached to punctuation
                 if target in candidate:
                     page.add_redact_annot(word_rect, fill=None)
-        
         page.apply_redactions()
 
-    # 2. LINK REMOVAL (NotebookLM often adds clickable links at the bottom)
-    # We remove any links found in the bottom 10% of the page
+    # 2. LINK REMOVAL
     links = page.get_links()
     for link in links:
-        # Check if link is in the bottom footer area
         if link['from'].y0 > page.rect.height * 0.9:
             page.delete_link(link)
 
-    # 3. COLOR MASKING (Smart Inpainting)
+    # 3. SMART COLOR SAMPLING (Improved)
     rect = page.rect
-    clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
+    # Sample color from JUST ABOVE the cut line to get the true background
+    # (Avoids sampling the watermark itself if it's in the cut zone)
+    safe_y = max(0, rect.height - footer_h - 10)
+    clip = fitz.Rect(0, safe_y, 1, safe_y + 1)
+    
     pix = page.get_pixmap(clip=clip)
-    r, g, b = pix.pixel(0, 0)
-    dynamic_color = (r/255, g/255, b/255)
+    # Fallback to white if sampling fails
+    if pix.width < 1 or pix.height < 1:
+        dynamic_color = (1, 1, 1)
+    else:
+        r, g, b = pix.pixel(0, 0)
+        dynamic_color = (r/255, g/255, b/255)
 
-    # 4. AREA WIPING (Header/Footer Sliders)
+    # 4. AREA WIPING
     if footer_h > 0:
         page.draw_rect(fitz.Rect(0, rect.height - footer_h, rect.width, rect.height), color=dynamic_color, fill=dynamic_color)
     if header_h > 0:
@@ -203,8 +193,9 @@ if uploaded_file:
         st.session_state.current_file = uploaded_file.name
         with st.spinner("🔍 Scanning for watermarks..."):
             st.session_state.auto_keywords = detect_watermark_candidates(file_bytes)
+            # DEFAULTS
             st.session_state.header_val = 0
-            st.session_state.footer_val = 0
+            st.session_state.footer_val = 25  # <--- DEFAULT SET TO 25
             st.session_state.text_val = st.session_state.auto_keywords
 
 if not uploaded_file:
@@ -265,7 +256,7 @@ else:
                 footer_height = st.slider(
                     "Bottom Margin Cut", 0, 150, 
                     key="footer_val",
-                    help="White-outs the bottom X pixels of every page."
+                    help="White-outs the bottom X pixels of every page. Default set to 25px."
                 )
 
             st.write("")
