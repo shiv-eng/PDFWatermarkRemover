@@ -20,12 +20,10 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
 
-    /* PROTECT ICONS */
     [data-testid="stExpander"] svg, [class*="material-symbols"], .st-emotion-cache-1pbqwg9 {
         font-family: 'Material Symbols Rounded' !important;
     }
 
-    /* Uploader Styling */
     [data-testid="stFileUploader"] {
         background-color: #FFFFFF;
         border: 2px dashed #E5E7EB;
@@ -38,7 +36,6 @@ st.markdown("""
         background-color: #EFF6FF;
     }
 
-    /* Notification Box */
     .auto-detect-box {
         background: linear-gradient(to right, #EFF6FF, #DBEAFE);
         border: 1px solid #BFDBFE;
@@ -49,7 +46,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* Headers */
     .hero-container {
         text-align: center;
         margin-bottom: 40px;
@@ -70,7 +66,6 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* Button Styling */
     .stDownloadButton > button {
         background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
         color: white !important;
@@ -96,49 +91,66 @@ st.markdown("""
 
 def detect_watermark_candidates(file_bytes):
     """
-    Improved detection logic:
-    1. Scans line-by-line (split by \\n) to catch watermarks that share a text block.
-    2. Specifically checks for 'NotebookLM' as per user request.
+    Scans for 'NotebookLM' specifically and other frequent lines.
     """
     doc = fitz.open(stream=file_bytes, filetype="pdf")
-    # Scan up to 10 pages for better accuracy
     page_limit = min(10, len(doc)) 
     line_counts = Counter()
     
     for i in range(page_limit):
         page = doc[i]
-        # Get text as a simple string and split by lines
         text_content = page.get_text("text")
+        # Split by lines and clean
         lines = [line.strip() for line in text_content.split('\n') if len(line.strip()) > 2]
         line_counts.update(lines)
 
-    # Threshold: Text must appear on at least 40% of scanned pages to be a "watermark"
     threshold = max(2, int(page_limit * 0.4))
     suggestions = [text for text, count in line_counts.items() if count >= threshold]
     
-    # Specific rule for your requested watermark
-    if "NotebookLM" in line_counts and "NotebookLM" not in suggestions:
+    # FORCE 'NotebookLM' into suggestions if it exists anywhere in the doc
+    # We check keys loosely to catch 'NotebookLM ' or ' NotebookLM'
+    found_notebook = any("notebooklm" in k.lower() for k in line_counts.keys())
+    if found_notebook and "NotebookLM" not in suggestions:
         suggestions.append("NotebookLM")
 
     return ", ".join(suggestions)
 
 def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
-    # 1. Text Redaction
+    # PREPARE KEYWORDS
     if keywords_str:
-        keywords = [k.strip() for k in keywords_str.split(',')]
+        keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+        
+        # STRATEGY 1: Exact Phrase Search (Standard)
         for keyword in keywords:
-            if not keyword: continue
             quads = page.search_for(keyword)
             for quad in quads:
                 if match_case:
                     res = page.get_text("text", clip=quad).strip()
                     if keyword not in res: continue
-                # Remove the text
                 page.add_redact_annot(quad, fill=None)
+        
+        # STRATEGY 2: Block-Based Hunt (Aggressive)
+        # This catches "NotebookLM" even if spacing is weird or search fails
+        blocks = page.get_text("blocks")
+        for block in blocks:
+            # block format: (x0, y0, x1, y1, "text content", block_no, block_type)
+            b_text = block[4]
+            b_rect = fitz.Rect(block[:4])
+            
+            for keyword in keywords:
+                # Check if keyword is inside this text block
+                check_text = b_text if match_case else b_text.lower()
+                check_key = keyword if match_case else keyword.lower()
+                
+                if check_key in check_text:
+                    # Found it! Redact the WHOLE block area
+                    page.add_redact_annot(b_rect, fill=None)
+
+        # Apply all redactions from both strategies
         page.apply_redactions()
 
     rect = page.rect
-    # 2. Smart color detection (samples near bottom edge)
+    # 2. Smart color detection
     clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
     pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
@@ -163,7 +175,6 @@ def get_preview_image(file_bytes, header_h, footer_h, txt, case):
 def process_full_document(file_bytes, header_h, footer_h, txt, case):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     output_buffer = io.BytesIO()
-    # Remove metadata which might also contain watermark info
     doc.set_metadata({}) 
     for page in doc:
         clean_page_logic(page, header_h, footer_h, txt, case)
@@ -189,7 +200,6 @@ with c2:
 if uploaded_file:
     file_bytes = uploaded_file.getvalue()
     
-    # Initialize State if new file
     if "current_file" not in st.session_state or st.session_state.current_file != uploaded_file.name:
         st.session_state.current_file = uploaded_file.name
         with st.spinner("🔍 Scanning for watermarks..."):
@@ -213,10 +223,8 @@ if not uploaded_file:
         st.caption("Files are processed in secure temporary memory and are not saved to disk.")
 
 else:
-    # Check if we should keep expander open
     header_active = st.session_state.get("header_val", 0) > 0
     footer_active = st.session_state.get("footer_val", 0) > 0
-    # Keep open if there are auto-detected keywords (like NotebookLM)
     text_active = len(st.session_state.get("text_val", "")) > 0 
     should_expand = header_active or footer_active or text_active
 
@@ -239,7 +247,7 @@ else:
                 text_input = st.text_input(
                     "Keywords", 
                     key="text_val",
-                    help="Enter specific words to erase (e.g., 'NotebookLM'). Separate multiple words with commas."
+                    help="Enter 'NotebookLM' here. This mode now aggressively targets the entire text block containing these words."
                 )
                 match_case = st.checkbox(
                     "Match Case", 
@@ -271,22 +279,4 @@ else:
             )
             st.download_button(
                 label="📥 Download Clean PDF",
-                data=final_pdf_data,
-                file_name=f"Clean_{uploaded_file.name}",
-                mime="application/pdf"
-            )
-
-        with col_preview:
-            st.subheader("👁️ Preview")
-            preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
-            if preview_img:
-                st.image(preview_img, width=450)
-            else:
-                st.info("Preview unavailable.")
-
-# --- FOOTER ---
-st.markdown("""
-<div style="text-align: center; margin-top: 60px; border-top: 1px solid #E5E7EB; padding-top: 20px;">
-    <img src="https://visitor-badge.laobi.icu/badge?page_id=pdfwatermarkremover.streamlit.app&left_text=Total%20Visits&left_color=%231F2937&right_color=%232563EB" alt="Visitor Count">
-</div>
-""", unsafe_allow_html=True)
+                data=final_pdf_
