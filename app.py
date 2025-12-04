@@ -2,6 +2,7 @@ import streamlit as st
 import fitz  # PyMuPDF
 import io
 import uuid
+import time
 from PIL import Image
 from collections import Counter
 
@@ -18,13 +19,14 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     
-    /* Hide the advanced toolbar visually but keep functionality */
+    /* Clean Expander */
     [data-testid="stExpander"] {
         border: 1px solid #E5E7EB;
         border-radius: 8px;
         background-color: #FAFAFA;
     }
 
+    /* Uploader */
     [data-testid="stFileUploader"] {
         background-color: #FFFFFF;
         border: 2px dashed #E5E7EB;
@@ -32,13 +34,15 @@ st.markdown("""
         padding: 30px;
     }
     
+    /* Success/Auto-Detect Box */
     .auto-detect-box {
-        background: linear-gradient(to right, #EFF6FF, #DBEAFE);
-        border: 1px solid #BFDBFE;
-        color: #1E40AF;
+        background: linear-gradient(to right, #F0FDF4, #DCFCE7); /* Green tint */
+        border: 1px solid #BBF7D0;
+        color: #166534;
         padding: 12px 20px;
         border-radius: 12px;
         margin-bottom: 20px;
+        font-size: 0.95rem;
     }
     
     .hero-container { text-align: center; margin-bottom: 40px; padding: 20px 0; }
@@ -100,7 +104,7 @@ def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
         page.apply_redactions()
 
     rect = page.rect
-    # 2. Smart color detection
+    # 2. Smart color detection (Grab color from just above footer)
     clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
     pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
@@ -112,7 +116,8 @@ def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
     if header_h > 0:
         page.draw_rect(fitz.Rect(0, 0, rect.width, header_h), color=dynamic_color, fill=dynamic_color)
 
-@st.cache_data(show_spinner=False)
+# We use TTL to ensure cache doesn't get stuck on old versions
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_preview_image(file_bytes, header_h, footer_h, txt, case):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     if len(doc) < 1: return None
@@ -121,7 +126,7 @@ def get_preview_image(file_bytes, header_h, footer_h, txt, case):
     pix = page.get_pixmap(dpi=150) 
     return Image.open(io.BytesIO(pix.tobytes("png")))
 
-@st.cache_data
+@st.cache_data(show_spinner=False, ttl=3600)
 def process_full_document(file_bytes, header_h, footer_h, txt, case):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     output_buffer = io.BytesIO()
@@ -146,25 +151,36 @@ c1, c2, c3 = st.columns([1, 6, 1])
 with c2:
     uploaded_file = st.file_uploader("Drop your PDF here to start", type="pdf", label_visibility="collapsed")
 
-# 2. ANALYSIS & STATE RESET (Runs immediately after upload)
+# 2. LOADER & INITIALIZATION (THE FIX)
 if uploaded_file:
     file_bytes = uploaded_file.getvalue()
     
-    # Identify the file uniquely
+    # Define a signature for the file to know if it's new
     file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
     
-    # If this is a NEW upload (or the first one)
-    if "active_file_signature" not in st.session_state or st.session_state.active_file_signature != file_signature:
-        st.session_state.active_file_signature = file_signature
+    # IF NEW FILE (or first run):
+    if "current_file_signature" not in st.session_state or st.session_state.current_file_signature != file_signature:
         
-        # GENERATE NEW SESSION ID 
-        # This is the magic trick. By changing this ID, we force the sliders below 
-        # to "re-render" as if they are brand new widgets.
-        st.session_state.unique_session_id = uuid.uuid4().hex
-        
-        with st.spinner("Analyzing document and detecting watermarks..."):
-            st.session_state.detected_text = detect_watermark_candidates(file_bytes)
-
+        # A. Show the LOADER Container
+        with st.status("🚀 initializing auto-clean...", expanded=True) as status:
+            st.write("Scanning document for text...")
+            detected_txt = detect_watermark_candidates(file_bytes)
+            time.sleep(0.3) # Tiny visual pause so user sees the step
+            
+            st.write("Configuring smart-removal tools...")
+            # Generate FRESH ID to force slider reset
+            new_uid = uuid.uuid4().hex
+            st.session_state.unique_session_id = new_uid
+            st.session_state.detected_text = detected_txt
+            st.session_state.current_file_signature = file_signature
+            time.sleep(0.3)
+            
+            st.write("Applying default Footer Cut (25px)...")
+            # We don't need to 'set' the slider here, the unique ID in the slider widget below does it.
+            time.sleep(0.3)
+            
+            status.update(label="✅ Ready! Auto-Clean Applied.", state="complete", expanded=False)
+            
 # 3. MAIN INTERFACE
 if not uploaded_file:
     st.write("")
@@ -180,32 +196,29 @@ if not uploaded_file:
         st.caption("Files are processed in memory only.")
 
 else:
-    # Notification Box
-    if st.session_state.get('detected_text'):
-        st.markdown(f"""
-        <div class="auto-detect-box">
-            🎯 <b>Auto-Detection:</b> Found potential watermarks: <u>{st.session_state.detected_text}</u>
-        </div>
-        """, unsafe_allow_html=True)
+    # Notification Box showing what happened
+    st.markdown(f"""
+    <div class="auto-detect-box">
+        ✨ <b>Auto-Applied:</b> Removed bottom 25px (Footer) & detected watermarks: <i>{st.session_state.get('detected_text', 'None')}</i>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.container(border=True):
         col_settings, col_preview = st.columns([3, 2], gap="large")
         
-        # Get the unique ID for this file upload
-        uid = st.session_state.unique_session_id
+        # RETRIEVE THE UNIQUE ID generated in the loader step
+        uid = st.session_state.get("unique_session_id", "default_1")
         
         with col_settings:
             st.subheader("🛠️ Removal Settings")
             
-            # --- HIDDEN ADVANCED TOOLBAR ---
-            # 'expanded=False' keeps it closed.
-            # The User won't see the sliders unless they click this.
+            # --- HIDDEN TOOLBAR (Collapsed by default) ---
             with st.expander("Advanced Options (Click to Edit)", expanded=False):
                 
                 st.markdown("**📝 Text Watermarks**")
                 text_input = st.text_input(
                     "Keywords", 
-                    value=st.session_state.detected_text,
+                    value=st.session_state.get("detected_text", ""),
                     key=f"txt_{uid}", 
                     help="Enter specific words to erase."
                 )
@@ -214,10 +227,9 @@ else:
                 st.markdown("---")
                 st.markdown("**✂️ Header & Footer Cutters**")
                 
-                # --- AUTO SLIDING SLIDERS ---
-                # We set 'value=25' for the footer. 
-                # Because 'key' includes 'uid' (which changed on upload), 
-                # Streamlit ignores old state and applies this '25' immediately.
+                # --- AUTO-SLIDERS ---
+                # Because 'uid' is brand new from the loader step, 
+                # this slider initializes at 'value=25' immediately.
                 
                 header_height = st.slider(
                     "Top Margin Cut", 0, 150, 
@@ -228,14 +240,17 @@ else:
                 
                 footer_height = st.slider(
                     "Bottom Margin Cut", 0, 150, 
-                    value=25,  # <--- AUTO SLIDE HAPPENS HERE
+                    value=25,  # <--- DEFAULT SET TO 25
                     key=f"foot_{uid}", 
                     help="White-outs the bottom X pixels."
                 )
 
             st.write("")
             
-            # 4. PROCESSING (Happens immediately using the values above)
+            # 4. PROCESSING 
+            # This function runs immediately. 
+            # Since footer_height comes from the slider above (which defaults to 25),
+            # this function receives 25.
             final_pdf_data = process_full_document(
                 uploaded_file.getvalue(), 
                 header_height, 
