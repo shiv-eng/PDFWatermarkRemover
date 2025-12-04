@@ -197,7 +197,8 @@ if not uploaded_file:
         st.caption("Replaces removed areas with matching background color.")
     with col3:
         st.markdown('### 🛡️ Private & Secure')
-        st.caption("No server uploads. Your files never leave your browser.")
+        # UPDATED FOR ACCURACY:
+        st.caption("Files are processed in secure temporary memory and are not saved to disk.")
 
 else:
     # Check if we should keep expander open
