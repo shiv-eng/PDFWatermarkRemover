@@ -1,6 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import io
+import uuid
 from PIL import Image
 from collections import Counter
 
@@ -175,17 +176,13 @@ if uploaded_file:
     file_bytes = uploaded_file.getvalue()
     
     # Check if this is a NEW file upload
-    if "current_file" not in st.session_state or st.session_state.current_file != uploaded_file.name:
-        st.session_state.current_file = uploaded_file.name
+    # We use a unique session ID 'uid' to force widgets to reset when file changes
+    if "last_file_name" not in st.session_state or st.session_state.last_file_name != uploaded_file.name:
+        st.session_state.last_file_name = uploaded_file.name
+        st.session_state.session_id = str(uuid.uuid4()) # Generate fresh ID
         
         with st.spinner("🔍 Scanning and prepping..."):
-            # 1. Run Text Detection
             st.session_state.auto_keywords = detect_watermark_candidates(file_bytes)
-            
-            # 2. SET DEFAULTS (This ensures processing happens immediately)
-            st.session_state.header_val = 0
-            st.session_state.footer_val = 25  # <--- DEFAULT APPLIED HERE
-            st.session_state.text_val = st.session_state.auto_keywords
 
 if not uploaded_file:
     st.write("")
@@ -212,46 +209,54 @@ else:
     with st.container(border=True):
         col_settings, col_preview = st.columns([3, 2], gap="large")
         
+        # Get Session ID for unique keys
+        session_uid = st.session_state.get("session_id", "default")
+
         with col_settings:
             st.subheader("🛠️ Removal Settings")
             
-            # CHANGED: 'expanded=False' forces it closed initially.
-            # The sliders inside will still contain the values set in session_state (25).
+            # HIDDEN INITIALLY (expanded=False)
             with st.expander("Advanced Options", expanded=False):
                 
                 st.markdown("**📝 Text Watermarks**")
+                # Dynamic Key ensures this resets on new file
                 text_input = st.text_input(
                     "Keywords", 
-                    key="text_val",
-                    help="Enter specific words to erase (e.g., 'Confidential'). Separate multiple words with commas."
+                    value=st.session_state.get("auto_keywords", ""),
+                    key=f"text_{session_uid}",
+                    help="Enter specific words to erase (e.g., 'Confidential')."
                 )
                 match_case = st.checkbox(
                     "Match Case", 
                     value=False,
-                    help="If checked, 'Draft' will NOT remove 'DRAFT' (Case sensitive)."
+                    key=f"case_{session_uid}",
+                    help="If checked, 'Draft' will NOT remove 'DRAFT'."
                 )
                 
                 st.markdown("---")
-                
                 st.markdown("**✂️ Header & Footer Cutters**")
                 
-                # These sliders automatically read their 'value' from st.session_state[key]
+                # HEADER SLIDER (Default 0)
                 header_height = st.slider(
                     "Top Margin Cut", 0, 150, 
-                    key="header_val",
+                    value=0, # Default
+                    key=f"header_{session_uid}", # Force Reset
                     help="White-outs the top X pixels of every page."
                 )
+                
+                # FOOTER SLIDER (Default 25)
+                # The 'value=25' here combined with a fresh 'key' ensures
+                # it is active immediately, even if the expander is closed.
                 footer_height = st.slider(
                     "Bottom Margin Cut", 0, 150, 
-                    key="footer_val", 
+                    value=25, # <--- ACTIVE DEFAULT
+                    key=f"footer_{session_uid}", # Force Reset
                     help="White-outs the bottom X pixels of every page."
                 )
 
             st.write("")
             
-            # Because 'footer_val' was initialized to 25 in session state,
-            # 'footer_height' variable is now 25 even if the expander is closed.
-            # This triggers the cleaning immediately.
+            # Process using the variables (which are now 0 and 25 by default)
             final_pdf_data = process_full_document(
                 uploaded_file.getvalue(), 
                 header_height, 
@@ -269,7 +274,7 @@ else:
 
         with col_preview:
             st.subheader("👁️ Preview")
-            # Same here: footer_height is 25, so preview shows the cut.
+            # Preview runs immediately with footer_height=25
             preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
             if preview_img:
                 st.image(preview_img, width=450)
