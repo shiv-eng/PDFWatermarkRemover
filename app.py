@@ -34,19 +34,35 @@ st.markdown("""
         padding: 30px;
     }
     
-    /* Center the feature blocks */
-    .feature-container {
+    /* Center the feature blocks FORCEFULLY */
+    .main-features-grid {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        padding: 10px;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 40px;
+        text-align: center !important;
+        margin: 40px 0;
         width: 100%;
     }
 
-    .feature-container h3 {
-        margin-top: 10px;
-        margin-bottom: 5px;
+    .feature-item {
+        flex: 1;
+        max-width: 300px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .feature-item h3 {
+        margin: 10px 0 5px 0 !important;
+        padding: 0 !important;
+        font-size: 1.5rem;
+    }
+
+    .feature-item p {
+        color: #6B7280;
+        font-size: 0.95rem;
+        margin: 0 !important;
     }
 
     /* Success/Auto-Detect Box */
@@ -176,34 +192,24 @@ if uploaded_file:
             st.session_state.current_file_signature = file_signature
             time.sleep(0.5) 
             
-# 3. MAIN INTERFACE (CENTERED VERSION)
+# 3. MAIN INTERFACE (FULL HTML FLEXBOX FIX)
 if not uploaded_file:
-    st.write("")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-            <div class="feature-container">
+    st.markdown("""
+        <div class="main-features-grid">
+            <div class="feature-item">
                 <h3>⚡ Auto-Detect</h3>
-                <div style="color: #6B7280;">Identifies repetitive text automatically.</div>
+                <p>Identifies repetitive text automatically.</p>
             </div>
-        """, unsafe_allow_html=True)
-        
-    with col2:
-        st.markdown("""
-            <div class="feature-container">
+            <div class="feature-item">
                 <h3>🎨 Smart Fill</h3>
-                <div style="color: #6B7280;">Replaces removed areas with background color.</div>
+                <p>Replaces removed areas with background color.</p>
             </div>
-        """, unsafe_allow_html=True)
-        
-    with col3:
-        st.markdown("""
-            <div class="feature-container">
+            <div class="feature-item">
                 <h3>🛡️ Private</h3>
-                <div style="color: #6B7280;">Files are processed in memory only.</div>
+                <p>Files are processed in memory only.</p>
             </div>
-        """, unsafe_allow_html=True)
+        </div>
+    """, unsafe_allow_html=True)
 
 else:
     detected_msg = st.session_state.get('detected_text', 'None')
