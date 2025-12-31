@@ -65,6 +65,12 @@ st.markdown("""
         font-weight: 600;
         width: 100%;
     }
+
+    /* Center-aligned feature cards */
+    .feature-card {
+        text-align: center;
+        padding: 10px;
+    }
     
     [data-testid="stHeader"], footer { display: none !important; }
     .block-container { padding-top: 2rem !important; }
@@ -90,7 +96,6 @@ def detect_watermark_candidates(file_bytes):
         return ""
 
 def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
-    # 1. Text Redaction
     if keywords_str:
         keywords = [k.strip() for k in keywords_str.split(',')]
         for keyword in keywords:
@@ -104,19 +109,16 @@ def clean_page_logic(page, header_h, footer_h, keywords_str, match_case):
         page.apply_redactions()
 
     rect = page.rect
-    # 2. Smart color detection (Grab color from just above footer)
     clip = fitz.Rect(0, rect.height-10, 1, rect.height-9)
     pix = page.get_pixmap(clip=clip)
     r, g, b = pix.pixel(0, 0)
     dynamic_color = (r/255, g/255, b/255)
 
-    # 3. Area Wiping (Header/Footer)
     if footer_h > 0:
         page.draw_rect(fitz.Rect(0, rect.height - footer_h, rect.width, rect.height), color=dynamic_color, fill=dynamic_color)
     if header_h > 0:
         page.draw_rect(fitz.Rect(0, 0, rect.width, header_h), color=dynamic_color, fill=dynamic_color)
 
-# We use TTL to ensure cache doesn't get stuck on old versions
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_preview_image(file_bytes, header_h, footer_h, txt, case):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -154,39 +156,29 @@ with c2:
 # 2. INVISIBLE INITIALIZATION
 if uploaded_file:
     file_bytes = uploaded_file.getvalue()
-    
     file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
     
-    # IF NEW FILE (or first run):
     if "current_file_signature" not in st.session_state or st.session_state.current_file_signature != file_signature:
-        
-        # We use a spinner instead of st.status so it disappears completely
         with st.spinner("🚀 Initializing auto-clean..."):
             detected_txt = detect_watermark_candidates(file_bytes)
-            
-            # Generate FRESH ID to force slider reset
             new_uid = uuid.uuid4().hex
             st.session_state.unique_session_id = new_uid
             st.session_state.detected_text = detected_txt
             st.session_state.current_file_signature = file_signature
-            time.sleep(0.5) # Short pause to ensure state settles
+            time.sleep(0.5)
             
-# 3. MAIN INTERFACE
+# 3. MAIN INTERFACE (Fix for Center Alignment)
 if not uploaded_file:
     st.write("")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown('### ⚡ Auto-Detect')
-        st.caption("Identifies repetitive text automatically.")
+        st.markdown('<div class="feature-card"><h3>⚡ Auto-Detect</h3><p style="color: #6B7280;">Identifies repetitive text automatically.</p></div>', unsafe_allow_html=True)
     with col2:
-        st.markdown('### 🎨 Smart Fill')
-        st.caption("Replaces removed areas with background color.")
+        st.markdown('<div class="feature-card"><h3>🎨 Smart Fill</h3><p style="color: #6B7280;">Replaces removed areas with background color.</p></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown('### 🛡️ Private')
-        st.caption("Files are processed in memory only.")
+        st.markdown('<div class="feature-card"><h3>🛡️ Private</h3><p style="color: #6B7280;">Files are processed in memory only.</p></div>', unsafe_allow_html=True)
 
 else:
-    # Notification Box - CLEANED UP TEXT
     detected_msg = st.session_state.get('detected_text', 'None')
     st.markdown(f"""
     <div class="auto-detect-box">
@@ -196,16 +188,11 @@ else:
 
     with st.container(border=True):
         col_settings, col_preview = st.columns([3, 2], gap="large")
-        
-        # RETRIEVE THE UNIQUE ID
         uid = st.session_state.get("unique_session_id", "default_1")
         
         with col_settings:
             st.subheader("🛠️ Removal Settings")
-            
-            # --- HIDDEN TOOLBAR (Collapsed by default) ---
             with st.expander("Advanced Options (Click to Edit)", expanded=False):
-                
                 st.markdown("**📝 Text Watermarks**")
                 text_input = st.text_input(
                     "Keywords", 
@@ -214,30 +201,12 @@ else:
                     help="Enter specific words to erase."
                 )
                 match_case = st.checkbox("Match Case", value=False, key=f"case_{uid}")
-                
                 st.markdown("---")
                 st.markdown("**✂️ Header & Footer Cutters**")
-                
-                # --- AUTO-SLIDERS ---
-                # Initialized to 0 and 25 respectively
-                
-                header_height = st.slider(
-                    "Top Margin Cut", 0, 150, 
-                    value=0, 
-                    key=f"head_{uid}", 
-                    help="White-outs the top X pixels."
-                )
-                
-                footer_height = st.slider(
-                    "Bottom Margin Cut", 0, 150, 
-                    value=21,  # <--- DEFAULT SET TO 25
-                    key=f"foot_{uid}", 
-                    help="White-outs the bottom X pixels."
-                )
+                header_height = st.slider("Top Margin Cut", 0, 150, value=0, key=f"head_{uid}")
+                footer_height = st.slider("Bottom Margin Cut", 0, 150, value=21, key=f"foot_{uid}")
 
             st.write("")
-            
-            # 4. PROCESSING 
             final_pdf_data = process_full_document(
                 uploaded_file.getvalue(), 
                 header_height, 
@@ -245,7 +214,6 @@ else:
                 text_input, 
                 match_case
             )
-            
             st.download_button(
                 label="📥 Download Clean PDF",
                 data=final_pdf_data,
@@ -255,7 +223,6 @@ else:
 
         with col_preview:
             st.subheader("👁️ Preview")
-            # Preview runs immediately with footer=25
             preview_img = get_preview_image(uploaded_file.getvalue(), header_height, footer_height, text_input, match_case)
             if preview_img:
                 st.image(preview_img, width=450)
