@@ -10,7 +10,8 @@ st.set_page_config(
 )
 
 from streamlit_gsheets import GSheetsConnection
-import fitz
+import streamlit.components.v1 as components
+import fitz  # PyMuPDF
 import io
 import uuid
 from PIL import Image
@@ -18,23 +19,19 @@ from collections import Counter
 import pandas as pd
 
 # -------------------------------------------------
-# SILENT VISITOR ID (NO UI, NO BLANK PAGE)
+# STABLE, SILENT VISITOR ID (NO UI CHANGE)
 # -------------------------------------------------
-st.markdown("""
-<script>
-if (!localStorage.getItem("anon_visitor_id")) {
-    localStorage.setItem("anon_visitor_id", crypto.randomUUID());
-}
-const vid = localStorage.getItem("anon_visitor_id");
-if (vid && !window.location.search.includes("vid=")) {
-    const url = new URL(window.location);
-    url.searchParams.set("vid", vid);
-    window.history.replaceState({}, "", url);
-}
-</script>
-""", unsafe_allow_html=True)
-
-visitor_id = st.query_params.get("vid", "unknown")
+visitor_id = components.html(
+    """
+    <script>
+    if (!localStorage.getItem("anon_visitor_id")) {
+        localStorage.setItem("anon_visitor_id", crypto.randomUUID());
+    }
+    document.write(localStorage.getItem("anon_visitor_id"));
+    </script>
+    """,
+    height=0,
+)
 
 # -------------------------------------------------
 # GOOGLE SHEETS CONNECTION
@@ -57,7 +54,7 @@ def save_stats(ux, dx):
     conn.update(worksheet="Stats", data=df)
 
 # -------------------------------------------------
-# VISITOR LOGIC
+# VISITOR ANALYTICS
 # -------------------------------------------------
 def classify_user(row):
     now = pd.Timestamp.utcnow()
@@ -124,21 +121,26 @@ if "visitor_tracked" not in st.session_state:
     st.session_state.visitor_tracked = True
 
 # -------------------------------------------------
-# CSS (UNCHANGED)
+# CSS (YOUR ORIGINAL STYLING)
 # -------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
 
 .ghost-counter {
-    position: fixed;
-    bottom: 10px;
-    right: 15px;
-    color: #D1D5DB;
-    font-size: 0.65rem;
-    font-family: monospace;
-    z-index: 999999;
+    position: fixed !important;
+    bottom: 10px !important;
+    right: 15px !important;
+    color: #D1D5DB !important;
+    font-size: 0.65rem !important;
+    font-family: monospace !important;
+    z-index: 999999 !important;
+    pointer-events: none !important;
+    user-select: none !important;
     opacity: 0.5;
 }
 
@@ -147,6 +149,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     flex-direction: column;
     align-items: center;
     text-align: center;
+    width: 100%;
 }
 
 .hero-title {
@@ -156,6 +159,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     -webkit-text-fill-color: transparent;
     font-size: 3.5rem;
     margin-top: 1rem;
+    margin-bottom: 0.5rem;
 }
 
 .hero-subtitle {
@@ -190,7 +194,7 @@ def clean_page(page, h_h, f_h, kw):
 
     r = page.rect
     pix = page.get_pixmap(clip=fitz.Rect(0, r.height-10, 1, r.height-9))
-    color = tuple(c/255 for c in pix.pixel(0, 0))
+    color = tuple(c / 255 for c in pix.pixel(0, 0))
 
     if f_h > 0:
         page.draw_rect(fitz.Rect(0, r.height - f_h, r.width, r.height), color=color, fill=color)
@@ -198,7 +202,7 @@ def clean_page(page, h_h, f_h, kw):
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
 # -------------------------------------------------
-# DOWNLOAD CALLBACK (TRACK DOWNLOADS)
+# DOWNLOAD CALLBACK
 # -------------------------------------------------
 def dx_callback():
     st.session_state.dx_count += 1
@@ -275,7 +279,7 @@ if uploaded_file:
 else:
     st.markdown("""
     <div class="feature-grid">
-        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text.</p></div>
+        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text automatically.</p></div>
         <div class="feature-item"><h3>🎨 Smart Fill</h3><p>Matches background color.</p></div>
         <div class="feature-item"><h3>🛡️ Private</h3><p>Files are processed in memory only.</p></div>
     </div>
