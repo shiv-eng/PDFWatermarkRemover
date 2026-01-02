@@ -1,29 +1,54 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-import fitz  # PyMuPDF
+import fitz
 import io
 import uuid
 from PIL import Image
 from collections import Counter
 import pandas as pd
+from datetime import datetime
+import pytz
+import streamlit.components.v1 as components
 
-# --- 1. CONFIGURATION ---
+# -------------------------------------------------
+# 1. CONFIGURATION (MUST BE FIRST)
+# -------------------------------------------------
 st.set_page_config(
     page_title="PDF Watermark Remover",
     page_icon="💧",
     layout="wide"
 )
 
-# --- 2. SESSION-SAFE VISITOR ID (NO UI IMPACT) ---
-if "visitor_id" not in st.session_state:
-    st.session_state.visitor_id = str(uuid.uuid4())
+# -------------------------------------------------
+# 2. PERSISTENT VISITOR ID (BROWSER LEVEL)
+# -------------------------------------------------
+visitor_id = components.html(
+    """
+    <script>
+    if (!localStorage.getItem("anon_vid")) {
+        localStorage.setItem("anon_vid", crypto.randomUUID());
+    }
+    document.write(localStorage.getItem("anon_vid"));
+    </script>
+    """,
+    height=0,
+)
 
-visitor_id = st.session_state.visitor_id
-
-# --- 3. GOOGLE SHEETS CONNECTION ---
+# -------------------------------------------------
+# 3. GOOGLE SHEETS CONNECTION
+# -------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 4. GLOBAL STATS ---
+# -------------------------------------------------
+# 4. IST TIME (HUMAN READABLE)
+# -------------------------------------------------
+def ist_now():
+    ist = pytz.timezone("Asia/Kolkata")
+    return datetime.now(ist).strftime("%d-%m-%Y %I:%M %p")
+
+# -------------------------------------------------
+# 5. GLOBAL STATS (UX / DX)
+# -------------------------------------------------
 def get_stats():
     try:
         df = conn.read(worksheet="Stats", ttl=0)
@@ -33,13 +58,14 @@ def get_stats():
 
 def save_stats(ux, dx):
     df = pd.DataFrame([{"UX": ux, "DX": dx}])
-    conn.clear(worksheet="Stats")
     conn.update(worksheet="Stats", data=df)
 
-# --- 5. VISITOR ANALYTICS ---
+# -------------------------------------------------
+# 6. VISITOR CLASSIFICATION
+# -------------------------------------------------
 def classify_user(row):
-    now = pd.Timestamp.utcnow()
-    last_seen = pd.to_datetime(row["last_seen"])
+    last_seen = datetime.strptime(row["last_seen"], "%d-%m-%Y %I:%M %p")
+    now = datetime.strptime(ist_now(), "%d-%m-%Y %I:%M %p")
     visits = int(row["visit_count"])
     downloads = int(row["download_count"])
 
@@ -51,33 +77,40 @@ def classify_user(row):
         return "weekly"
     return "new"
 
+# -------------------------------------------------
+# 7. VISITOR TRACKING (NO CLEAR, PUBLIC SHEET SAFE)
+# -------------------------------------------------
 def track_visitor(visitor_id):
-    now = pd.Timestamp.utcnow().isoformat()
+    now = ist_now()
 
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
 
         if visitor_id in df["visitor_id"].values:
             idx = df.index[df["visitor_id"] == visitor_id][0]
+
             df.at[idx, "last_seen"] = now
             df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
-        else:
-            df = pd.concat([
-                df,
-                pd.DataFrame([{
-                    "visitor_id": visitor_id,
-                    "first_seen": now,
-                    "last_seen": now,
-                    "visit_count": 1,
-                    "download_count": 0,
-                    "user_type": "new"
-                }])
-            ], ignore_index=True)
+            df.at[idx, "user_type"] = classify_user(df.loc[idx])
 
-        df["user_type"] = df.apply(classify_user, axis=1)
+            conn.update(
+                worksheet="Visitors",
+                data=df.iloc[[idx]],
+                row=idx + 2  # header + 0-index
+            )
+        else:
+            new_row = pd.DataFrame([{
+                "visitor_id": visitor_id,
+                "first_seen": now,
+                "last_seen": now,
+                "visit_count": 1,
+                "download_count": 0,
+                "user_type": "new"
+            }])
+            conn.append(worksheet="Visitors", data=new_row)
 
     except:
-        df = pd.DataFrame([{
+        new_row = pd.DataFrame([{
             "visitor_id": visitor_id,
             "first_seen": now,
             "last_seen": now,
@@ -85,11 +118,11 @@ def track_visitor(visitor_id):
             "download_count": 0,
             "user_type": "new"
         }])
+        conn.append(worksheet="Visitors", data=new_row)
 
-    conn.clear(worksheet="Visitors")
-    conn.update(worksheet="Visitors", data=df)
-
-# --- 6. SESSION INIT ---
+# -------------------------------------------------
+# 8. SESSION INIT
+# -------------------------------------------------
 if "ux_count" not in st.session_state:
     ux, dx = get_stats()
     st.session_state.ux_count = ux
@@ -99,100 +132,72 @@ if "visitor_tracked" not in st.session_state:
     track_visitor(visitor_id)
     st.session_state.visitor_tracked = True
 
-# --- 7. ORIGINAL CSS (RESTORED 100%) ---
+# -------------------------------------------------
+# 9. ORIGINAL CSS (UNCHANGED)
+# -------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
-
-/* Ghost Counter */
 .ghost-counter {
-    position: fixed !important;
-    bottom: 10px !important;
-    right: 15px !important;
-    color: #D1D5DB !important;
-    font-size: 0.65rem !important;
-    font-family: monospace !important;
-    z-index: 999999 !important;
-    pointer-events: none !important;
-    user-select: none !important;
-    opacity: 0.5;
+    position: fixed; bottom: 10px; right: 15px;
+    color: #D1D5DB; font-size: 0.65rem;
+    font-family: monospace; opacity: 0.5;
 }
 
-/* Center Wrapper */
 .center-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    width: 100%;
+    display:flex; flex-direction:column;
+    align-items:center; text-align:center;
 }
 
 .hero-title {
-    font-weight: 800;
-    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 3.5rem;
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
+    font-weight:800; font-size:3.5rem;
+    background:linear-gradient(135deg,#2563EB,#06B6D4);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
 }
 
 .hero-subtitle {
-    color: #6B7280;
-    font-size: 1.2rem;
-    margin-bottom: 2rem;
+    color:#6B7280; font-size:1.2rem;
+    margin-bottom:2rem;
 }
 
-/* Feature Grid */
 .feature-grid {
-    display: flex;
-    justify-content: center;
-    gap: 4rem;
-    margin-top: 2rem;
-    width: 100%;
+    display:flex; justify-content:center;
+    gap:4rem; margin-top:2rem;
 }
 
-.feature-item {
-    max-width: 250px;
-}
+.feature-item { max-width:250px; }
 
-/* File Uploader */
 [data-testid="stFileUploader"] {
-    background-color: #FFFFFF;
-    border: 2px dashed #E5E7EB;
-    border-radius: 20px;
-    padding: 20px;
+    background:#fff;
+    border:2px dashed #E5E7EB;
+    border-radius:20px; padding:20px;
 }
 
-/* Expander */
 [data-testid="stExpander"] {
-    border: 1px solid #E5E7EB;
-    border-radius: 8px;
-    background-color: #FAFAFA;
+    border:1px solid #E5E7EB;
+    border-radius:8px;
+    background:#FAFAFA;
 }
 
-/* Download Button */
 .stDownloadButton > button {
-    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
-    color: white !important;
-    border: none;
-    padding: 0.6rem 2rem;
-    border-radius: 10px;
-    font-weight: 600;
-    width: 100%;
+    background:linear-gradient(135deg,#2563EB,#06B6D4);
+    color:white; border:none;
+    padding:0.6rem 2rem;
+    border-radius:10px;
+    font-weight:600; width:100%;
 }
 
-[data-testid="stHeader"], footer { display: none !important; }
-.block-container { padding-top: 2rem !important; }
+[data-testid="stHeader"], footer { display:none; }
+.block-container { padding-top:2rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 8. PDF CORE LOGIC (UNCHANGED) ---
+# -------------------------------------------------
+# 10. PDF CORE LOGIC (UNCHANGED)
+# -------------------------------------------------
 def detect_watermark_candidates(file_bytes):
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -221,7 +226,9 @@ def clean_page(page, h_h, f_h, kw):
     if h_h > 0:
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
-# --- 9. DOWNLOAD CALLBACK ---
+# -------------------------------------------------
+# 11. DOWNLOAD CALLBACK (TRACK PER USER)
+# -------------------------------------------------
 def dx_callback():
     st.session_state.dx_count += 1
     save_stats(st.session_state.ux_count, st.session_state.dx_count)
@@ -229,15 +236,22 @@ def dx_callback():
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
         idx = df.index[df["visitor_id"] == visitor_id][0]
+
         df.at[idx, "download_count"] = int(df.at[idx, "download_count"]) + 1
-        df.at[idx, "last_seen"] = pd.Timestamp.utcnow().isoformat()
+        df.at[idx, "last_seen"] = ist_now()
         df.at[idx, "user_type"] = classify_user(df.loc[idx])
-        conn.clear(worksheet="Visitors")
-        conn.update(worksheet="Visitors", data=df)
+
+        conn.update(
+            worksheet="Visitors",
+            data=df.iloc[[idx]],
+            row=idx + 2
+        )
     except:
         pass
 
-# --- 10. UI (UNCHANGED) ---
+# -------------------------------------------------
+# 12. UI (UNCHANGED)
+# -------------------------------------------------
 st.markdown(
     f'<div class="ghost-counter">UX: {st.session_state.ux_count} | DX: {st.session_state.dx_count}</div>',
     unsafe_allow_html=True
@@ -295,17 +309,8 @@ if uploaded_file:
 else:
     st.markdown("""
     <div class="feature-grid">
-        <div class="feature-item">
-            <h3>⚡ Auto-Detect</h3>
-            <p style="color:#6B7280;">Identifies repetitive text automatically.</p>
-        </div>
-        <div class="feature-item">
-            <h3>🎨 Smart Fill</h3>
-            <p style="color:#6B7280;">Replaces removed areas with background color.</p>
-        </div>
-        <div class="feature-item">
-            <h3>🛡️ Private</h3>
-            <p style="color:#6B7280;">Files are processed in memory only.</p>
-        </div>
+        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p style="color:#6B7280;">Identifies repetitive text automatically.</p></div>
+        <div class="feature-item"><h3>🎨 Smart Fill</h3><p style="color:#6B7280;">Replaces removed areas with background color.</p></div>
+        <div class="feature-item"><h3>🛡️ Private</h3><p style="color:#6B7280;">Files are processed in memory only.</p></div>
     </div>
     """, unsafe_allow_html=True)
