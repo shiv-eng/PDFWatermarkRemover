@@ -1,3 +1,5 @@
 streamlit
 pymupdf
 Pillow
+st-gsheets-connection
+pandas
