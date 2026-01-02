@@ -1,40 +1,7 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
-import fitz  # PyMuPDF
-import io
-import uuid
-from PIL import Image
-from collections import Counter
-import pandas as pd
 
 # -------------------------------------------------
-# 0. SILENT VISITOR ID (NO UI, NO CONSENT)
-# -------------------------------------------------
-st.markdown("""
-<script>
-if (!localStorage.getItem("anon_visitor_id")) {
-    localStorage.setItem("anon_visitor_id", crypto.randomUUID());
-}
-</script>
-""", unsafe_allow_html=True)
-
-visitor_id = st.query_params.get("vid")
-
-if not visitor_id:
-    st.markdown("""
-    <script>
-    const vid = localStorage.getItem("anon_visitor_id");
-    if (vid) {
-        const url = new URL(window.location);
-        url.searchParams.set("vid", vid);
-        window.history.replaceState({}, "", url);
-    }
-    </script>
-    """, unsafe_allow_html=True)
-    st.stop()
-
-# -------------------------------------------------
-# 1. CONFIGURATION
+# MUST BE FIRST
 # -------------------------------------------------
 st.set_page_config(
     page_title="PDF Watermark Remover",
@@ -42,13 +9,40 @@ st.set_page_config(
     layout="wide"
 )
 
+from streamlit_gsheets import GSheetsConnection
+import fitz
+import io
+import uuid
+from PIL import Image
+from collections import Counter
+import pandas as pd
+
 # -------------------------------------------------
-# 2. GOOGLE SHEETS CONNECTION
+# SILENT VISITOR ID (NO UI, NO BLANK PAGE)
+# -------------------------------------------------
+st.markdown("""
+<script>
+if (!localStorage.getItem("anon_visitor_id")) {
+    localStorage.setItem("anon_visitor_id", crypto.randomUUID());
+}
+const vid = localStorage.getItem("anon_visitor_id");
+if (vid && !window.location.search.includes("vid=")) {
+    const url = new URL(window.location);
+    url.searchParams.set("vid", vid);
+    window.history.replaceState({}, "", url);
+}
+</script>
+""", unsafe_allow_html=True)
+
+visitor_id = st.query_params.get("vid", "unknown")
+
+# -------------------------------------------------
+# GOOGLE SHEETS CONNECTION
 # -------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------
-# 3. GLOBAL STATS (UNCHANGED)
+# GLOBAL STATS (UNCHANGED)
 # -------------------------------------------------
 def get_stats():
     try:
@@ -63,7 +57,7 @@ def save_stats(ux, dx):
     conn.update(worksheet="Stats", data=df)
 
 # -------------------------------------------------
-# 4. VISITOR CLASSIFICATION
+# VISITOR LOGIC
 # -------------------------------------------------
 def classify_user(row):
     now = pd.Timestamp.utcnow()
@@ -118,7 +112,7 @@ def track_visitor(visitor_id):
     conn.update(worksheet="Visitors", data=df)
 
 # -------------------------------------------------
-# 5. SESSION STATE INIT
+# SESSION INIT
 # -------------------------------------------------
 if "ux_count" not in st.session_state:
     ux, dx = get_stats()
@@ -130,12 +124,13 @@ if "visitor_tracked" not in st.session_state:
     st.session_state.visitor_tracked = True
 
 # -------------------------------------------------
-# 6. CSS (UNCHANGED)
+# CSS (UNCHANGED)
 # -------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
 .ghost-counter {
     position: fixed;
     bottom: 10px;
@@ -146,11 +141,33 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     z-index: 999999;
     opacity: 0.5;
 }
+
+.center-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.hero-title {
+    font-weight: 800;
+    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 3.5rem;
+    margin-top: 1rem;
+}
+
+.hero-subtitle {
+    color: #6B7280;
+    font-size: 1.2rem;
+    margin-bottom: 2rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------
-# 7. CORE PDF LOGIC (UNCHANGED)
+# PDF CORE LOGIC (UNCHANGED)
 # -------------------------------------------------
 def detect_watermark_candidates(file_bytes):
     try:
@@ -173,7 +190,7 @@ def clean_page(page, h_h, f_h, kw):
 
     r = page.rect
     pix = page.get_pixmap(clip=fitz.Rect(0, r.height-10, 1, r.height-9))
-    color = tuple(c / 255 for c in pix.pixel(0, 0))
+    color = tuple(c/255 for c in pix.pixel(0, 0))
 
     if f_h > 0:
         page.draw_rect(fitz.Rect(0, r.height - f_h, r.width, r.height), color=color, fill=color)
@@ -181,7 +198,7 @@ def clean_page(page, h_h, f_h, kw):
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
 # -------------------------------------------------
-# 8. DOWNLOAD CALLBACK (EXTENDED)
+# DOWNLOAD CALLBACK (TRACK DOWNLOADS)
 # -------------------------------------------------
 def dx_callback():
     st.session_state.dx_count += 1
@@ -199,7 +216,7 @@ def dx_callback():
         pass
 
 # -------------------------------------------------
-# 9. UI (100% ORIGINAL)
+# UI (UNCHANGED)
 # -------------------------------------------------
 st.markdown(
     f'<div class="ghost-counter">UX: {st.session_state.ux_count} | DX: {st.session_state.dx_count}</div>',
@@ -258,14 +275,8 @@ if uploaded_file:
 else:
     st.markdown("""
     <div class="feature-grid">
-        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text automatically.</p></div>
+        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text.</p></div>
         <div class="feature-item"><h3>🎨 Smart Fill</h3><p>Matches background color.</p></div>
         <div class="feature-item"><h3>🛡️ Private</h3><p>Files are processed in memory only.</p></div>
     </div>
     """, unsafe_allow_html=True)
-
-st.markdown("""
-<div style="text-align:center;margin-top:5rem;border-top:1px solid #E5E7EB;padding-top:2rem;">
-    <img src="https://visitor-badge.laobi.icu/badge?page_id=pdfwatermarkremover.streamlit.app">
-</div>
-""", unsafe_allow_html=True)
