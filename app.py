@@ -10,8 +10,7 @@ st.set_page_config(
 )
 
 from streamlit_gsheets import GSheetsConnection
-import streamlit.components.v1 as components
-import fitz  # PyMuPDF
+import fitz
 import io
 import uuid
 from PIL import Image
@@ -19,19 +18,12 @@ from collections import Counter
 import pandas as pd
 
 # -------------------------------------------------
-# STABLE, SILENT VISITOR ID (NO UI CHANGE)
+# STABLE VISITOR ID (SESSION-LEVEL, SAFE)
 # -------------------------------------------------
-visitor_id = components.html(
-    """
-    <script>
-    if (!localStorage.getItem("anon_visitor_id")) {
-        localStorage.setItem("anon_visitor_id", crypto.randomUUID());
-    }
-    document.write(localStorage.getItem("anon_visitor_id"));
-    </script>
-    """,
-    height=0,
-)
+if "visitor_id" not in st.session_state:
+    st.session_state.visitor_id = str(uuid.uuid4())
+
+visitor_id = st.session_state.visitor_id
 
 # -------------------------------------------------
 # GOOGLE SHEETS CONNECTION
@@ -59,8 +51,8 @@ def save_stats(ux, dx):
 def classify_user(row):
     now = pd.Timestamp.utcnow()
     last_seen = pd.to_datetime(row["last_seen"])
-    visits = row["visit_count"]
-    downloads = row["download_count"]
+    visits = int(row["visit_count"])
+    downloads = int(row["download_count"])
 
     if visits >= 10 or downloads >= 5:
         return "power"
@@ -71,7 +63,7 @@ def classify_user(row):
     return "new"
 
 def track_visitor(visitor_id):
-    now = pd.Timestamp.utcnow()
+    now = pd.Timestamp.utcnow().isoformat()
 
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
@@ -79,7 +71,7 @@ def track_visitor(visitor_id):
         if visitor_id in df["visitor_id"].values:
             idx = df.index[df["visitor_id"] == visitor_id][0]
             df.at[idx, "last_seen"] = now
-            df.at[idx, "visit_count"] += 1
+            df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
         else:
             df = pd.concat([
                 df,
@@ -121,7 +113,7 @@ if "visitor_tracked" not in st.session_state:
     st.session_state.visitor_tracked = True
 
 # -------------------------------------------------
-# CSS (YOUR ORIGINAL STYLING)
+# CSS (UNCHANGED FROM YOUR ORIGINAL)
 # -------------------------------------------------
 st.markdown("""
 <style>
@@ -211,8 +203,8 @@ def dx_callback():
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
         idx = df.index[df["visitor_id"] == visitor_id][0]
-        df.at[idx, "download_count"] += 1
-        df.at[idx, "last_seen"] = pd.Timestamp.utcnow()
+        df.at[idx, "download_count"] = int(df.at[idx, "download_count"]) + 1
+        df.at[idx, "last_seen"] = pd.Timestamp.utcnow().isoformat()
         df.at[idx, "user_type"] = classify_user(df.loc[idx])
         conn.clear(worksheet="Visitors")
         conn.update(worksheet="Visitors", data=df)
