@@ -6,8 +6,6 @@ import uuid
 from PIL import Image
 from collections import Counter
 import pandas as pd
-st.write("Secrets loaded:", "gsheets" in st.secrets)
-st.write("Secrets keys:", list(st.secrets.keys()))
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -16,16 +14,22 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. PERSISTENT DATABASE CONNECTION ---
+# --- 2. PERSISTENT DATABASE CONNECTION (FIXED) ---
+conn = None
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception:
+    gs_cfg = st.secrets["connections"]["gsheets"]
+    conn = GSheetsConnection(
+        spreadsheet=gs_cfg["spreadsheet"],
+        credentials=gs_cfg
+    )
+except Exception as e:
+    st.error(f"GSheets init failed: {e}")
     conn = None
 
 def get_stats():
     if conn:
         try:
-            df = conn.read(worksheet="Stats", ttl=0)
+            df = conn.read(worksheet="Stats", ttl=None)
             return int(df.iloc[0]["UX"]), int(df.iloc[0]["DX"])
         except Exception:
             return 0, 0
@@ -38,7 +42,7 @@ def save_stats(ux, dx):
             conn.update(
                 worksheet="Stats",
                 data=df,
-                mode="replace"   # 🔑 REQUIRED FIX
+                mode="replace"
             )
         except Exception as e:
             st.error(f"GSheets write failed: {e}")
@@ -186,7 +190,11 @@ if uploaded_file:
         with col_s:
             st.subheader("🛠️ Settings")
             with st.expander("Advanced Options"):
-                txt = st.text_input("Keywords", value=st.session_state.get("detected_text", ""), key=f"t_{uid}")
+                txt = st.text_input(
+                    "Keywords",
+                    value=st.session_state.get("detected_text", ""),
+                    key=f"t_{uid}"
+                )
                 h_h = st.slider("Top Cut", 0, 150, 0, key=f"h_{uid}")
                 f_h = st.slider("Bottom Cut", 0, 150, 25, key=f"f_{uid}")
 
