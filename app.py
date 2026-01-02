@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # -------------------------------------------------
-# 1. CONFIGURATION (MUST BE FIRST)
+# CONFIG
 # -------------------------------------------------
 st.set_page_config(
     page_title="PDF Watermark Remover",
@@ -20,34 +20,39 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# 2. PERSISTENT VISITOR ID (BROWSER LEVEL)
+# PERSISTENT VISITOR ID (browser, anonymous)
 # -------------------------------------------------
-visitor_id = components.html(
+components.html(
     """
     <script>
     if (!localStorage.getItem("anon_vid")) {
         localStorage.setItem("anon_vid", crypto.randomUUID());
     }
-    document.write(localStorage.getItem("anon_vid"));
     </script>
     """,
     height=0,
 )
 
+visitor_id = st.session_state.get("visitor_id")
+if not visitor_id:
+    visitor_id = str(uuid.uuid4())
+    st.session_state.visitor_id = visitor_id
+
 # -------------------------------------------------
-# 3. GOOGLE SHEETS CONNECTION
+# GOOGLE SHEETS
 # -------------------------------------------------
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------
-# 4. IST TIME (HUMAN READABLE)
+# TIME (IST)
 # -------------------------------------------------
 def ist_now():
-    ist = pytz.timezone("Asia/Kolkata")
-    return datetime.now(ist).strftime("%d-%m-%Y %I:%M %p")
+    return datetime.now(
+        pytz.timezone("Asia/Kolkata")
+    ).strftime("%d-%m-%Y %I:%M %p")
 
 # -------------------------------------------------
-# 5. GLOBAL STATS (UX / DX)
+# STATS (UX / DX)
 # -------------------------------------------------
 def get_stats():
     try:
@@ -61,11 +66,12 @@ def save_stats(ux, dx):
     conn.update(worksheet="Stats", data=df)
 
 # -------------------------------------------------
-# 6. VISITOR CLASSIFICATION
+# VISITOR CLASSIFICATION
 # -------------------------------------------------
 def classify_user(row):
     last_seen = datetime.strptime(row["last_seen"], "%d-%m-%Y %I:%M %p")
     now = datetime.strptime(ist_now(), "%d-%m-%Y %I:%M %p")
+
     visits = int(row["visit_count"])
     downloads = int(row["download_count"])
 
@@ -78,7 +84,7 @@ def classify_user(row):
     return "new"
 
 # -------------------------------------------------
-# 7. VISITOR TRACKING (NO CLEAR, PUBLIC SHEET SAFE)
+# VISITOR TRACKING (NO clear(), NO append())
 # -------------------------------------------------
 def track_visitor(visitor_id):
     now = ist_now()
@@ -96,7 +102,7 @@ def track_visitor(visitor_id):
             conn.update(
                 worksheet="Visitors",
                 data=df.iloc[[idx]],
-                row=idx + 2  # header + 0-index
+                row=idx + 2
             )
         else:
             new_row = pd.DataFrame([{
@@ -107,7 +113,12 @@ def track_visitor(visitor_id):
                 "download_count": 0,
                 "user_type": "new"
             }])
-            conn.append(worksheet="Visitors", data=new_row)
+
+            conn.update(
+                worksheet="Visitors",
+                data=new_row,
+                row=len(df) + 2
+            )
 
     except:
         new_row = pd.DataFrame([{
@@ -118,10 +129,11 @@ def track_visitor(visitor_id):
             "download_count": 0,
             "user_type": "new"
         }])
-        conn.append(worksheet="Visitors", data=new_row)
+
+        conn.update(worksheet="Visitors", data=new_row, row=2)
 
 # -------------------------------------------------
-# 8. SESSION INIT
+# SESSION INIT
 # -------------------------------------------------
 if "ux_count" not in st.session_state:
     ux, dx = get_stats()
@@ -133,70 +145,28 @@ if "visitor_tracked" not in st.session_state:
     st.session_state.visitor_tracked = True
 
 # -------------------------------------------------
-# 9. ORIGINAL CSS (UNCHANGED)
+# CSS (UNCHANGED)
 # -------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
-.ghost-counter {
-    position: fixed; bottom: 10px; right: 15px;
-    color: #D1D5DB; font-size: 0.65rem;
-    font-family: monospace; opacity: 0.5;
-}
-
-.center-wrapper {
-    display:flex; flex-direction:column;
-    align-items:center; text-align:center;
-}
-
-.hero-title {
-    font-weight:800; font-size:3.5rem;
-    background:linear-gradient(135deg,#2563EB,#06B6D4);
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-}
-
-.hero-subtitle {
-    color:#6B7280; font-size:1.2rem;
-    margin-bottom:2rem;
-}
-
-.feature-grid {
-    display:flex; justify-content:center;
-    gap:4rem; margin-top:2rem;
-}
-
+.ghost-counter { position:fixed; bottom:10px; right:15px; color:#D1D5DB; font-size:0.65rem; font-family:monospace; opacity:0.5; }
+.center-wrapper { display:flex; flex-direction:column; align-items:center; text-align:center; }
+.hero-title { font-weight:800; font-size:3.5rem; background:linear-gradient(135deg,#2563EB,#06B6D4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero-subtitle { color:#6B7280; font-size:1.2rem; margin-bottom:2rem; }
+.feature-grid { display:flex; justify-content:center; gap:4rem; margin-top:2rem; }
 .feature-item { max-width:250px; }
-
-[data-testid="stFileUploader"] {
-    background:#fff;
-    border:2px dashed #E5E7EB;
-    border-radius:20px; padding:20px;
-}
-
-[data-testid="stExpander"] {
-    border:1px solid #E5E7EB;
-    border-radius:8px;
-    background:#FAFAFA;
-}
-
-.stDownloadButton > button {
-    background:linear-gradient(135deg,#2563EB,#06B6D4);
-    color:white; border:none;
-    padding:0.6rem 2rem;
-    border-radius:10px;
-    font-weight:600; width:100%;
-}
-
+[data-testid="stFileUploader"] { background:#fff; border:2px dashed #E5E7EB; border-radius:20px; padding:20px; }
+[data-testid="stExpander"] { border:1px solid #E5E7EB; border-radius:8px; background:#FAFAFA; }
+.stDownloadButton > button { background:linear-gradient(135deg,#2563EB,#06B6D4); color:white; border:none; padding:0.6rem 2rem; border-radius:10px; font-weight:600; width:100%; }
 [data-testid="stHeader"], footer { display:none; }
 .block-container { padding-top:2rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------
-# 10. PDF CORE LOGIC (UNCHANGED)
+# PDF LOGIC (UNCHANGED)
 # -------------------------------------------------
 def detect_watermark_candidates(file_bytes):
     try:
@@ -227,7 +197,7 @@ def clean_page(page, h_h, f_h, kw):
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
 # -------------------------------------------------
-# 11. DOWNLOAD CALLBACK (TRACK PER USER)
+# DOWNLOAD CALLBACK
 # -------------------------------------------------
 def dx_callback():
     st.session_state.dx_count += 1
@@ -250,7 +220,7 @@ def dx_callback():
         pass
 
 # -------------------------------------------------
-# 12. UI (UNCHANGED)
+# UI (UNCHANGED)
 # -------------------------------------------------
 st.markdown(
     f'<div class="ghost-counter">UX: {st.session_state.ux_count} | DX: {st.session_state.dx_count}</div>',
