@@ -16,18 +16,28 @@ st.set_page_config(
 )
 
 # --- 2. PERSISTENT DATABASE CONNECTION ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Added try-except to prevent app crash if connection fails
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception:
+    conn = None
 
 def get_stats():
-    try:
-        df = conn.read(worksheet="Stats", ttl=0)
-        return int(df.iloc[0]["UX"]), int(df.iloc[0]["DX"])
-    except:
-        return 0, 0
+    if conn:
+        try:
+            df = conn.read(worksheet="Stats", ttl=0)
+            return int(df.iloc[0]["UX"]), int(df.iloc[0]["DX"])
+        except Exception:
+            return 0, 0
+    return 0, 0
 
 def save_stats(ux, dx):
-    df = pd.DataFrame([{"UX": ux, "DX": dx}])
-    conn.update(worksheet="Stats", data=df)
+    if conn:
+        try:
+            df = pd.DataFrame([{"UX": ux, "DX": dx}])
+            conn.update(worksheet="Stats", data=df)
+        except Exception:
+            pass
 
 # Initialize Session State
 if 'ux_count' not in st.session_state:
