@@ -1,38 +1,29 @@
 import streamlit as st
-
-# -------------------------------------------------
-# MUST BE FIRST
-# -------------------------------------------------
-st.set_page_config(
-    page_title="PDF Watermark Remover",
-    page_icon="💧",
-    layout="wide"
-)
-
 from streamlit_gsheets import GSheetsConnection
-import fitz
+import fitz  # PyMuPDF
 import io
 import uuid
 from PIL import Image
 from collections import Counter
 import pandas as pd
 
-# -------------------------------------------------
-# STABLE VISITOR ID (SESSION-LEVEL, SAFE)
-# -------------------------------------------------
+# --- 1. CONFIGURATION ---
+st.set_page_config(
+    page_title="PDF Watermark Remover",
+    page_icon="💧",
+    layout="wide"
+)
+
+# --- 2. SESSION-SAFE VISITOR ID (NO UI IMPACT) ---
 if "visitor_id" not in st.session_state:
     st.session_state.visitor_id = str(uuid.uuid4())
 
 visitor_id = st.session_state.visitor_id
 
-# -------------------------------------------------
-# GOOGLE SHEETS CONNECTION
-# -------------------------------------------------
+# --- 3. GOOGLE SHEETS CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# -------------------------------------------------
-# GLOBAL STATS (UNCHANGED)
-# -------------------------------------------------
+# --- 4. GLOBAL STATS ---
 def get_stats():
     try:
         df = conn.read(worksheet="Stats", ttl=0)
@@ -45,9 +36,7 @@ def save_stats(ux, dx):
     conn.clear(worksheet="Stats")
     conn.update(worksheet="Stats", data=df)
 
-# -------------------------------------------------
-# VISITOR ANALYTICS
-# -------------------------------------------------
+# --- 5. VISITOR ANALYTICS ---
 def classify_user(row):
     now = pd.Timestamp.utcnow()
     last_seen = pd.to_datetime(row["last_seen"])
@@ -100,9 +89,7 @@ def track_visitor(visitor_id):
     conn.clear(worksheet="Visitors")
     conn.update(worksheet="Visitors", data=df)
 
-# -------------------------------------------------
-# SESSION INIT
-# -------------------------------------------------
+# --- 6. SESSION INIT ---
 if "ux_count" not in st.session_state:
     ux, dx = get_stats()
     st.session_state.ux_count = ux
@@ -112,9 +99,7 @@ if "visitor_tracked" not in st.session_state:
     track_visitor(visitor_id)
     st.session_state.visitor_tracked = True
 
-# -------------------------------------------------
-# CSS (UNCHANGED FROM YOUR ORIGINAL)
-# -------------------------------------------------
+# --- 7. ORIGINAL CSS (RESTORED 100%) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -123,6 +108,7 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
+/* Ghost Counter */
 .ghost-counter {
     position: fixed !important;
     bottom: 10px !important;
@@ -136,10 +122,12 @@ html, body, [class*="css"] {
     opacity: 0.5;
 }
 
+/* Center Wrapper */
 .center-wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-align: center;
     width: 100%;
 }
@@ -159,12 +147,52 @@ html, body, [class*="css"] {
     font-size: 1.2rem;
     margin-bottom: 2rem;
 }
+
+/* Feature Grid */
+.feature-grid {
+    display: flex;
+    justify-content: center;
+    gap: 4rem;
+    margin-top: 2rem;
+    width: 100%;
+}
+
+.feature-item {
+    max-width: 250px;
+}
+
+/* File Uploader */
+[data-testid="stFileUploader"] {
+    background-color: #FFFFFF;
+    border: 2px dashed #E5E7EB;
+    border-radius: 20px;
+    padding: 20px;
+}
+
+/* Expander */
+[data-testid="stExpander"] {
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    background-color: #FAFAFA;
+}
+
+/* Download Button */
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
+    color: white !important;
+    border: none;
+    padding: 0.6rem 2rem;
+    border-radius: 10px;
+    font-weight: 600;
+    width: 100%;
+}
+
+[data-testid="stHeader"], footer { display: none !important; }
+.block-container { padding-top: 2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# PDF CORE LOGIC (UNCHANGED)
-# -------------------------------------------------
+# --- 8. PDF CORE LOGIC (UNCHANGED) ---
 def detect_watermark_candidates(file_bytes):
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -193,9 +221,7 @@ def clean_page(page, h_h, f_h, kw):
     if h_h > 0:
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
-# -------------------------------------------------
-# DOWNLOAD CALLBACK
-# -------------------------------------------------
+# --- 9. DOWNLOAD CALLBACK ---
 def dx_callback():
     st.session_state.dx_count += 1
     save_stats(st.session_state.ux_count, st.session_state.dx_count)
@@ -211,9 +237,7 @@ def dx_callback():
     except:
         pass
 
-# -------------------------------------------------
-# UI (UNCHANGED)
-# -------------------------------------------------
+# --- 10. UI (UNCHANGED) ---
 st.markdown(
     f'<div class="ghost-counter">UX: {st.session_state.ux_count} | DX: {st.session_state.dx_count}</div>',
     unsafe_allow_html=True
@@ -271,8 +295,17 @@ if uploaded_file:
 else:
     st.markdown("""
     <div class="feature-grid">
-        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text automatically.</p></div>
-        <div class="feature-item"><h3>🎨 Smart Fill</h3><p>Matches background color.</p></div>
-        <div class="feature-item"><h3>🛡️ Private</h3><p>Files are processed in memory only.</p></div>
+        <div class="feature-item">
+            <h3>⚡ Auto-Detect</h3>
+            <p style="color:#6B7280;">Identifies repetitive text automatically.</p>
+        </div>
+        <div class="feature-item">
+            <h3>🎨 Smart Fill</h3>
+            <p style="color:#6B7280;">Replaces removed areas with background color.</p>
+        </div>
+        <div class="feature-item">
+            <h3>🛡️ Private</h3>
+            <p style="color:#6B7280;">Files are processed in memory only.</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
