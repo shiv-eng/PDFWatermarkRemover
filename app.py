@@ -33,10 +33,10 @@ components.html(
     height=0,
 )
 
-visitor_id = st.session_state.get("visitor_id")
-if not visitor_id:
-    visitor_id = str(uuid.uuid4())
-    st.session_state.visitor_id = visitor_id
+if "visitor_id" not in st.session_state:
+    st.session_state.visitor_id = str(uuid.uuid4())
+
+visitor_id = st.session_state.visitor_id
 
 # -------------------------------------------------
 # GOOGLE SHEETS
@@ -44,7 +44,7 @@ if not visitor_id:
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------
-# TIME (IST)
+# IST TIME
 # -------------------------------------------------
 def ist_now():
     return datetime.now(
@@ -84,53 +84,35 @@ def classify_user(row):
     return "new"
 
 # -------------------------------------------------
-# VISITOR TRACKING (NO clear(), NO append())
+# VISITOR TRACKING (SAFE METHOD)
 # -------------------------------------------------
 def track_visitor(visitor_id):
     now = ist_now()
 
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
-
-        if visitor_id in df["visitor_id"].values:
-            idx = df.index[df["visitor_id"] == visitor_id][0]
-
-            df.at[idx, "last_seen"] = now
-            df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
-            df.at[idx, "user_type"] = classify_user(df.loc[idx])
-
-            conn.update(
-                worksheet="Visitors",
-                data=df.iloc[[idx]],
-                row=idx + 2
-            )
-        else:
-            new_row = pd.DataFrame([{
-                "visitor_id": visitor_id,
-                "first_seen": now,
-                "last_seen": now,
-                "visit_count": 1,
-                "download_count": 0,
-                "user_type": "new"
-            }])
-
-            conn.update(
-                worksheet="Visitors",
-                data=new_row,
-                row=len(df) + 2
-            )
-
     except:
-        new_row = pd.DataFrame([{
+        df = pd.DataFrame(columns=[
+            "visitor_id", "first_seen", "last_seen",
+            "visit_count", "download_count", "user_type"
+        ])
+
+    if visitor_id in df["visitor_id"].values:
+        idx = df.index[df["visitor_id"] == visitor_id][0]
+        df.at[idx, "last_seen"] = now
+        df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
+        df.at[idx, "user_type"] = classify_user(df.loc[idx])
+    else:
+        df = pd.concat([df, pd.DataFrame([{
             "visitor_id": visitor_id,
             "first_seen": now,
             "last_seen": now,
             "visit_count": 1,
             "download_count": 0,
             "user_type": "new"
-        }])
+        }])], ignore_index=True)
 
-        conn.update(worksheet="Visitors", data=new_row, row=2)
+    conn.update(worksheet="Visitors", data=df)
 
 # -------------------------------------------------
 # SESSION INIT
@@ -206,16 +188,10 @@ def dx_callback():
     try:
         df = conn.read(worksheet="Visitors", ttl=0)
         idx = df.index[df["visitor_id"] == visitor_id][0]
-
         df.at[idx, "download_count"] = int(df.at[idx, "download_count"]) + 1
         df.at[idx, "last_seen"] = ist_now()
         df.at[idx, "user_type"] = classify_user(df.loc[idx])
-
-        conn.update(
-            worksheet="Visitors",
-            data=df.iloc[[idx]],
-            row=idx + 2
-        )
+        conn.update(worksheet="Visitors", data=df)
     except:
         pass
 
