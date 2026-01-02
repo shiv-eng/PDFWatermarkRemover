@@ -321,3 +321,9 @@ else:
         <div class="feature-item"><h3>🛡️ Private</h3><p style="color:#6B7280;">Files are processed in memory only.</p></div>
     </div>
     """, unsafe_allow_html=True)
+# --- FOOTER ---
+st.markdown("""
+<div style="text-align: center; margin-top: 60px; border-top: 1px solid #E5E7EB; padding-top: 20px;">
+    <img src="https://visitor-badge.laobi.icu/badge?page_id=pdfwatermarkremover.streamlit.app&left_text=Total%20Visits&left_color=%231F2937&right_color=%232563EB" alt="Visitor Count">
+</div>
+""", unsafe_allow_html=True)
