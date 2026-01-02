@@ -6,6 +6,8 @@ import uuid
 from PIL import Image
 from collections import Counter
 import pandas as pd
+st.write("Secrets loaded:", "gsheets" in st.secrets)
+st.write("Secrets keys:", list(st.secrets.keys()))
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
