@@ -1,6 +1,5 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-from streamlit_cookies_manager import EncryptedCookieManager
 import fitz
 import io
 import uuid
