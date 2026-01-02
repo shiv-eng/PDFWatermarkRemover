@@ -14,11 +14,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. PERSISTENT DATABASE CONNECTION (FIXED) ---
+# --- 2. PERSISTENT DATABASE CONNECTION (FINAL FIX) ---
 conn = None
 try:
     gs_cfg = st.secrets["connections"]["gsheets"]
     conn = GSheetsConnection(
+        connection_name="gsheets",   # ✅ REQUIRED
         spreadsheet=gs_cfg["spreadsheet"],
         credentials=gs_cfg
     )
