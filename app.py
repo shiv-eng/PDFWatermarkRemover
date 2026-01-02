@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-import fitz  # PyMuPDF
+import fitz
 import io
 import uuid
 from PIL import Image
@@ -14,17 +14,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. PERSISTENT DATABASE CONNECTION (FINAL FIX) ---
-conn = None
+# --- 2. GSheets Connection (CORRECT WAY) ---
 try:
-    gs_cfg = st.secrets["connections"]["gsheets"]
-    conn = GSheetsConnection(
-        connection_name="gsheets",   # ✅ REQUIRED
-        spreadsheet=gs_cfg["spreadsheet"],
-        credentials=gs_cfg
-    )
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"GSheets init failed: {e}")
+    st.error(f"GSheets connection failed: {e}")
     conn = None
 
 def get_stats():
@@ -43,7 +37,7 @@ def save_stats(ux, dx):
             conn.update(
                 worksheet="Stats",
                 data=df,
-                mode="replace"
+                mode="replace"   # ✅ THIS WAS THE REAL FIX
             )
         except Exception as e:
             st.error(f"GSheets write failed: {e}")
@@ -54,59 +48,16 @@ if "ux_count" not in st.session_state:
     st.session_state.ux_count = ux
     st.session_state.dx_count = dx
 
-# --- 3. CSS STYLING ---
+# --- 3. CSS ---
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
+html, body { font-family: Inter, sans-serif; }
 .ghost-counter {
     position: fixed;
     bottom: 10px;
     right: 15px;
-    color: #D1D5DB;
     font-size: 0.65rem;
-    font-family: monospace;
-    z-index: 999999;
     opacity: 0.5;
-}
-
-.center-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-}
-
-.hero-title {
-    font-weight: 800;
-    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 3.5rem;
-    margin-top: 1rem;
-}
-
-.hero-subtitle {
-    color: #6B7280;
-    font-size: 1.2rem;
-    margin-bottom: 2rem;
-}
-
-.feature-grid {
-    display: flex;
-    justify-content: center;
-    gap: 4rem;
-    margin-top: 2rem;
-}
-
-.feature-item { max-width: 250px; }
-
-.stDownloadButton > button {
-    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
-    color: white;
-    border-radius: 10px;
-    width: 100%;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -119,11 +70,7 @@ def detect_watermark_candidates(file_bytes):
         counts = Counter()
         for i in range(min(5, len(doc))):
             page = doc[i]
-            blocks = [
-                b[4].strip()
-                for b in page.get_text("blocks")
-                if len(b[4].strip()) > 3
-            ]
+            blocks = [b[4].strip() for b in page.get_text("blocks") if len(b[4].strip()) > 3]
             counts.update(blocks)
         return ", ".join([t for t, c in counts.items() if c >= 2])
     except Exception:
@@ -141,16 +88,9 @@ def clean_page(page, h_h, f_h, kw):
     color = tuple(c/255 for c in pix.pixel(0, 0))
 
     if f_h > 0:
-        page.draw_rect(
-            fitz.Rect(0, r.height - f_h, r.width, r.height),
-            color=color, fill=color
-        )
-
+        page.draw_rect(fitz.Rect(0, r.height - f_h, r.width, r.height), color=color, fill=color)
     if h_h > 0:
-        page.draw_rect(
-            fitz.Rect(0, 0, r.width, h_h),
-            color=color, fill=color
-        )
+        page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
 def dx_callback():
     st.session_state.dx_count += 1
@@ -162,13 +102,6 @@ st.markdown(
     f'<div class="ghost-counter">UX: {st.session_state.ux_count} | DX: {st.session_state.dx_count}</div>',
     unsafe_allow_html=True
 )
-
-st.markdown("""
-<div class="center-wrapper">
-    <div class="hero-title">PDF Watermark Remover</div>
-    <div class="hero-subtitle">Clean, Professional, and Private Document Processing</div>
-</div>
-""", unsafe_allow_html=True)
 
 _, uploader_col, _ = st.columns([1, 4, 1])
 with uploader_col:
@@ -184,49 +117,29 @@ if uploaded_file:
         st.session_state.detected_text = detect_watermark_candidates(uploaded_file.getvalue())
         st.rerun()
 
-    with st.container(border=True):
-        col_s, col_p = st.columns([3, 2])
-        uid = uuid.uuid4().hex
+    col_s, col_p = st.columns([3, 2])
+    uid = uuid.uuid4().hex
 
-        with col_s:
-            st.subheader("🛠️ Settings")
-            with st.expander("Advanced Options"):
-                txt = st.text_input(
-                    "Keywords",
-                    value=st.session_state.get("detected_text", ""),
-                    key=f"t_{uid}"
-                )
-                h_h = st.slider("Top Cut", 0, 150, 0, key=f"h_{uid}")
-                f_h = st.slider("Bottom Cut", 0, 150, 25, key=f"f_{uid}")
+    with col_s:
+        txt = st.text_input("Keywords", value=st.session_state.get("detected_text", ""), key=f"t_{uid}")
+        h_h = st.slider("Top Cut", 0, 150, 0, key=f"h_{uid}")
+        f_h = st.slider("Bottom Cut", 0, 150, 25, key=f"f_{uid}")
 
-            doc = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
-            out_buf = io.BytesIO()
-            for page in doc:
-                clean_page(page, h_h, f_h, txt)
-            doc.save(out_buf)
+        doc = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
+        out_buf = io.BytesIO()
+        for page in doc:
+            clean_page(page, h_h, f_h, txt)
+        doc.save(out_buf)
 
-            st.download_button(
-                "📥 Download Clean PDF",
-                data=out_buf.getvalue(),
-                file_name=f"Clean_{uploaded_file.name}",
-                on_click=dx_callback
-            )
+        st.download_button(
+            "📥 Download Clean PDF",
+            data=out_buf.getvalue(),
+            file_name=f"Clean_{uploaded_file.name}",
+            on_click=dx_callback
+        )
 
-        with col_p:
-            st.subheader("👁️ Preview")
-            prev = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
-            p0 = prev[0]
-            clean_page(p0, h_h, f_h, txt)
-            st.image(
-                Image.open(io.BytesIO(p0.get_pixmap(dpi=100).tobytes("png"))),
-                use_container_width=True
-            )
-
-else:
-    st.markdown("""
-    <div class="feature-grid">
-        <div class="feature-item"><h3>⚡ Auto-Detect</h3><p>Identifies repetitive text.</p></div>
-        <div class="feature-item"><h3>🎨 Smart Fill</h3><p>Matches background color.</p></div>
-        <div class="feature-item"><h3>🛡️ Private</h3><p>In-memory processing only.</p></div>
-    </div>
-    """, unsafe_allow_html=True)
+    with col_p:
+        prev = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
+        p0 = prev[0]
+        clean_page(p0, h_h, f_h, txt)
+        st.image(Image.open(io.BytesIO(p0.get_pixmap(dpi=100).tobytes("png"))), use_container_width=True)
