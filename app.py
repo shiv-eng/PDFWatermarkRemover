@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+from streamlit_cookies_manager import EncryptedCookieManager
 import fitz
 import io
 import uuid
@@ -8,7 +9,6 @@ from collections import Counter
 import pandas as pd
 from datetime import datetime
 import pytz
-import streamlit.components.v1 as components
 
 # -------------------------------------------------
 # CONFIG
@@ -20,23 +20,20 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# PERSISTENT VISITOR ID (browser, anonymous)
+# COOKIES (PERSISTENT VISITOR ID)
 # -------------------------------------------------
-components.html(
-    """
-    <script>
-    if (!localStorage.getItem("anon_vid")) {
-        localStorage.setItem("anon_vid", crypto.randomUUID());
-    }
-    </script>
-    """,
-    height=0,
+cookies = EncryptedCookieManager(
+    prefix="pdfwm_",
+    password="change-this-to-a-long-random-string"
 )
 
-if "visitor_id" not in st.session_state:
-    st.session_state.visitor_id = str(uuid.uuid4())
+if not cookies.ready():
+    st.stop()
 
-visitor_id = st.session_state.visitor_id
+if "visitor_id" not in cookies:
+    cookies["visitor_id"] = str(uuid.uuid4())
+
+visitor_id = cookies["visitor_id"]
 
 # -------------------------------------------------
 # GOOGLE SHEETS
@@ -44,7 +41,7 @@ visitor_id = st.session_state.visitor_id
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------
-# IST TIME
+# TIME (IST)
 # -------------------------------------------------
 def ist_now():
     return datetime.now(
@@ -52,7 +49,7 @@ def ist_now():
     ).strftime("%d-%m-%Y %I:%M %p")
 
 # -------------------------------------------------
-# STATS (UX / DX)
+# GLOBAL STATS (UX / DX)
 # -------------------------------------------------
 def get_stats():
     try:
@@ -84,7 +81,7 @@ def classify_user(row):
     return "new"
 
 # -------------------------------------------------
-# VISITOR TRACKING (SAFE METHOD)
+# VISITOR TRACKING + UX COUNT
 # -------------------------------------------------
 def track_visitor(visitor_id):
     now = ist_now()
@@ -97,12 +94,9 @@ def track_visitor(visitor_id):
             "visit_count", "download_count", "user_type"
         ])
 
-    if visitor_id in df["visitor_id"].values:
-        idx = df.index[df["visitor_id"] == visitor_id][0]
-        df.at[idx, "last_seen"] = now
-        df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
-        df.at[idx, "user_type"] = classify_user(df.loc[idx])
-    else:
+    is_new_visitor = visitor_id not in df["visitor_id"].values
+
+    if is_new_visitor:
         df = pd.concat([df, pd.DataFrame([{
             "visitor_id": visitor_id,
             "first_seen": now,
@@ -111,8 +105,15 @@ def track_visitor(visitor_id):
             "download_count": 0,
             "user_type": "new"
         }])], ignore_index=True)
+    else:
+        idx = df.index[df["visitor_id"] == visitor_id][0]
+        df.at[idx, "last_seen"] = now
+        df.at[idx, "visit_count"] = int(df.at[idx, "visit_count"]) + 1
+        df.at[idx, "user_type"] = classify_user(df.loc[idx])
 
     conn.update(worksheet="Visitors", data=df)
+
+    return is_new_visitor
 
 # -------------------------------------------------
 # SESSION INIT
@@ -123,7 +124,12 @@ if "ux_count" not in st.session_state:
     st.session_state.dx_count = dx
 
 if "visitor_tracked" not in st.session_state:
-    track_visitor(visitor_id)
+    is_new = track_visitor(visitor_id)
+
+    if is_new:
+        st.session_state.ux_count += 1
+        save_stats(st.session_state.ux_count, st.session_state.dx_count)
+
     st.session_state.visitor_tracked = True
 
 # -------------------------------------------------
@@ -133,17 +139,72 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.ghost-counter { position:fixed; bottom:10px; right:15px; color:#D1D5DB; font-size:0.65rem; font-family:monospace; opacity:0.5; }
-.center-wrapper { display:flex; flex-direction:column; align-items:center; text-align:center; }
-.hero-title { font-weight:800; font-size:3.5rem; background:linear-gradient(135deg,#2563EB,#06B6D4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-.hero-subtitle { color:#6B7280; font-size:1.2rem; margin-bottom:2rem; }
-.feature-grid { display:flex; justify-content:center; gap:4rem; margin-top:2rem; }
-.feature-item { max-width:250px; }
-[data-testid="stFileUploader"] { background:#fff; border:2px dashed #E5E7EB; border-radius:20px; padding:20px; }
-[data-testid="stExpander"] { border:1px solid #E5E7EB; border-radius:8px; background:#FAFAFA; }
-.stDownloadButton > button { background:linear-gradient(135deg,#2563EB,#06B6D4); color:white; border:none; padding:0.6rem 2rem; border-radius:10px; font-weight:600; width:100%; }
-[data-testid="stHeader"], footer { display:none; }
-.block-container { padding-top:2rem; }
+
+.ghost-counter {
+    position: fixed;
+    bottom: 10px;
+    right: 15px;
+    color: #D1D5DB;
+    font-size: 0.65rem;
+    font-family: monospace;
+    opacity: 0.5;
+}
+
+.center-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.hero-title {
+    font-weight: 800;
+    font-size: 3.5rem;
+    background: linear-gradient(135deg, #2563EB, #06B6D4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+    color: #6B7280;
+    font-size: 1.2rem;
+    margin-bottom: 2rem;
+}
+
+.feature-grid {
+    display: flex;
+    justify-content: center;
+    gap: 4rem;
+    margin-top: 2rem;
+}
+
+.feature-item { max-width: 250px; }
+
+[data-testid="stFileUploader"] {
+    background: #fff;
+    border: 2px dashed #E5E7EB;
+    border-radius: 20px;
+    padding: 20px;
+}
+
+[data-testid="stExpander"] {
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    background: #FAFAFA;
+}
+
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #2563EB, #06B6D4);
+    color: white;
+    border: none;
+    padding: 0.6rem 2rem;
+    border-radius: 10px;
+    font-weight: 600;
+    width: 100%;
+}
+
+[data-testid="stHeader"], footer { display: none; }
+.block-container { padding-top: 2rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -170,7 +231,7 @@ def clean_page(page, h_h, f_h, kw):
         page.apply_redactions()
 
     r = page.rect
-    pix = page.get_pixmap(clip=fitz.Rect(0, r.height-10, 1, r.height-9))
+    pix = page.get_pixmap(clip=fitz.Rect(0, r.height - 10, 1, r.height - 9))
     color = tuple(c / 255 for c in pix.pixel(0, 0))
 
     if f_h > 0:
@@ -179,7 +240,7 @@ def clean_page(page, h_h, f_h, kw):
         page.draw_rect(fitz.Rect(0, 0, r.width, h_h), color=color, fill=color)
 
 # -------------------------------------------------
-# DOWNLOAD CALLBACK
+# DOWNLOAD CALLBACK (DX + per-user)
 # -------------------------------------------------
 def dx_callback():
     st.session_state.dx_count += 1
